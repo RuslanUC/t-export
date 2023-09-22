@@ -1,4 +1,5 @@
 from asyncio import get_running_loop
+from os.path import exists
 from typing import Union, Optional
 
 from pyrogram.types import Message as PyroMessage
@@ -6,6 +7,7 @@ from pyrogram.types import Message as PyroMessage
 from .export_config import ExportConfig
 from .html.base import Export
 from .html.message import DateMessage, Message
+from .resources import unpack_to
 
 
 class MessagesSaver:
@@ -16,6 +18,10 @@ class MessagesSaver:
         self.config = config
 
     def _save(self) -> None:
+        out_dir = self.config.output_dir
+        if not exists(out_dir / "js") or exists(out_dir / "images") or exists(out_dir / "css"):
+            unpack_to(out_dir)
+
         output = ""
         prev: Optional[PyroMessage] = None
         dates = 0
@@ -33,7 +39,7 @@ class MessagesSaver:
             prev = message
 
         output = Export(prev.chat.first_name, output).to_html()
-        with open(f"{self.config.output_dir}/messages{self.part}.html", "w", encoding="utf8") as f:
+        with open(f"{out_dir}/messages{self.part}.html", "w", encoding="utf8") as f:
             f.write(output)
 
     async def save(self) -> None:

@@ -1,15 +1,43 @@
 [tool.poetry]
 name = "t-export"
 version = "0.1.0"
-description = ""
+description = "Telegram chats export tool."
 authors = ["RuslanUC <dev_ruslan_uc@protonmail.com>"]
 readme = "README.md"
+license = "MIT"
+classifiers = [
+    "Environment :: Console",
+    "Framework :: AsyncIO",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Typing :: Typed",
+    "Topic :: Internet",
+]
+packages = [
+    { include = "texport" }
+]
+
+[tool.poetry.urls]
+Homepage = "https://github.com/RuslanUC/t-export"
+Repository = "https://github.com/RuslanUC/t-export"
+
+[tool.poetry.scripts]
+texport = "texport.main:main"
+t_export = "texport.main:main"
 
 [tool.poetry.dependencies]
 python = "^3.9"
 pyrogram = "^2.0.106"
 tgcrypto = "^1.2.5"
 click = "^8.1.7"
+colorama = "^0.4.6"
 
 
 [build-system]

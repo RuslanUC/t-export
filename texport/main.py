@@ -44,18 +44,20 @@ async def _main(session_name: str, api_id: int, api_hash: str, config: ExportCon
 @click.option("--stickers/--no-stickers", default=True, help="Download stickers or not.")
 @click.option("--gifs/--no-gifs", default=True, help="Download gifs or not.")
 @click.option("--documents/--no-documents", default=True, help="Download documents or not.")
+@click.option("--quiet", default=False, help="Do not print progress to console.")
 def main(
         session_name: str, api_id: int, api_hash: str, chat_id: str, output: str, size_limit: int, from_date: str,
         to_date: str, photos: bool, videos: bool, voice: bool, video_notes: bool, stickers: bool, gifs: bool,
-        documents: bool,
+        documents: bool, quiet: bool,
 ) -> None:
-    texport_dir = Path.home() / ".texport"
+    home = Path.home()
+    texport_dir = home / ".texport"
     makedirs(texport_dir, exist_ok=True)
     makedirs(output, exist_ok=True)
 
     config = ExportConfig(
         chat_id=chat_id,
-        output_dir=output,
+        output_dir=Path(output),
         size_limit=size_limit,
         from_date=datetime.strptime(from_date, "%d.%m.%Y"),
         to_date=datetime.strptime(to_date, "%d.%m.%Y"),
@@ -66,21 +68,23 @@ def main(
         export_stickers=stickers,
         export_gifs=gifs,
         export_files=documents,
+        print=not quiet,
     )
 
     if session_name.endswith(".session"):
         name = Path(session_name).name
-        copy(session_name, f"~/.texport/{name}")
+        copy(session_name, home / ".texport" / name)
         session_name = name[:8]
 
-    if api_id is None or api_hash is None:
+    if (api_id is None or api_hash is None) and not exists(home / ".texport" / f"{session_name}.session"):
         if not exists(texport_dir / "config.json"):
-            print("You should specify --api-id and --api-hash parameters!")
+            print("You should specify \"--api-id\" and \"--api-hash\" arguments or import existing pyrogram session "
+                  "file by passing it's path to \"--session\" argument!")
             return
         with open(texport_dir / "config.json", "r", encoding="utf8") as f:
             conf = json.load(f)
         api_id, api_hash = conf["api_id"], conf["api_hash"]
-    else:
+    elif api_id is not None and api_hash is not None:
         with open(texport_dir / "config.json", "w", encoding="utf8") as f:
             json.dump({"api_id": api_id, "api_hash": api_hash}, f)
 

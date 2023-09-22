@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import Union
 
 from pyrogram.enums import MessageMediaType
@@ -18,7 +19,7 @@ EXPORT_MEDIA = {
 @dataclass
 class ExportConfig:
     chat_id: Union[str, int] = "me"
-    output_dir: str = "./telegram_export"
+    output_dir: Path = Path("./telegram_export")
     export_photos: bool = True
     export_videos: bool = True
     export_voice: bool = True
@@ -29,6 +30,7 @@ class ExportConfig:
     size_limit: int = 32  # In megabytes
     from_date: datetime = datetime(1970, 1, 1)
     to_date: datetime = datetime.now()
+    print: bool = False
 
     def excluded_media(self) -> set[MessageMediaType]:
         result = set()
