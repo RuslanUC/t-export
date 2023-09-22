@@ -39,15 +39,15 @@ Or you can pass path of existing pyrogram session to "--session" argument (no ne
 
 #### Export all messages from private chat with user @example to directory example_export
 ```shell
-$ t-export -c example -o example export
+$ t-export -c example -o example_export
 ```
 
 #### Export all messages from private chat with user @example to directory example_export without videos and with size limit of 100 megabytes
 ```shell
-$ t-export -c example -o example export --no-videos --size-limit 100
+$ t-export -c example -o example_export --no-videos --size-limit 100
 ```
 
 #### Export all messages from start of 2023 from private chat with user @example to directory example_export
 ```shell
-$ t-export -c example -o example export --size-limit 100 --from-date 01.01.2023
+$ t-export -c example -o example_export --size-limit 100 --from-date 01.01.2023
 ```
