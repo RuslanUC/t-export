@@ -31,6 +31,7 @@ class ExportConfig:
     from_date: datetime = datetime(1970, 1, 1)
     to_date: datetime = datetime.now()
     print: bool = False
+    preload: bool = False
 
     def excluded_media(self) -> set[MessageMediaType]:
         result = set()

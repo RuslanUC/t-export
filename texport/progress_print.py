@@ -12,6 +12,9 @@ class ProgressPrint:
         self._status = "Initializing..."
         self._approx_messages_count = 0
         self._messages_exported = 0
+        self._messages_loaded = 0
+        self._media_status = "Idle..."
+        self._media_queue = 0
 
         self._disabled = disabled
 
@@ -24,6 +27,8 @@ class ProgressPrint:
 
     @status.setter
     def status(self, value: str) -> None:
+        if self._status == value: return
+
         self._status = value
         if self.do_update.get():
             self._update()
@@ -34,6 +39,8 @@ class ProgressPrint:
 
     @approx_messages_count.setter
     def approx_messages_count(self, value: int) -> None:
+        if self._approx_messages_count == value: return
+
         self._approx_messages_count = value
         if self.do_update.get():
             self._update()
@@ -44,26 +51,72 @@ class ProgressPrint:
 
     @messages_exported.setter
     def messages_exported(self, value: int) -> None:
+        if self._messages_exported == value: return
+
         self._messages_exported = value
         if self.do_update.get():
             self._update()
+
+    @property
+    def messages_loaded(self) -> int:
+        return self._messages_loaded
+
+    @messages_loaded.setter
+    def messages_loaded(self, value: int) -> None:
+        if self._messages_loaded == value: return
+
+        self._messages_loaded = value
+        if self.do_update.get():
+            self._update()
+
+    @property
+    def media_status(self) -> str:
+        return self._media_status
+
+    @media_status.setter
+    def media_status(self, value: str) -> None:
+        if self._media_status == value: return
+
+        self._media_status = value
+        if self.do_update.get():
+            self._update()
+
+    @property
+    def media_queue(self) -> int:
+        return self._media_queue
+
+    @media_queue.setter
+    def media_queue(self, value: int) -> None:
+        if self._media_queue == value: return
+
+        self._media_queue = value
+        if self.do_update.get():
+            self._update()
+
+    def _progress(self, value: int, cols: int) -> str:
+        if self._approx_messages_count:
+            cols_done = int((value / self._approx_messages_count) * (cols - 2))
+            cols_remain = int(cols - 2 - cols_done)
+            return f"[{'#' * cols_done}{'-' * cols_remain}]"
+        else:
+            cols_remain = cols - 2
+            return f"[{'-' * cols_remain}]"
 
     def _update(self) -> None:
         if self._disabled: return
 
         cols, _ = shutil.get_terminal_size((80, 20))
-        if self._approx_messages_count:
-            cols_done = int((self._messages_exported / self._approx_messages_count) * (cols - 2))
-            cols_remain = int(cols - 2 - cols_done)
-            progress = f"[{'#' * cols_done}{'-' * cols_remain}]"
-        else:
-            cols_remain = cols - 2
-            progress = f"[{'-' * cols_remain}]"
+        exp_progress = self._progress(self._messages_exported, cols)
+        load_progress = self._progress(self._messages_loaded, cols) if self._messages_loaded else exp_progress
         out = [
             f"Current status: {self._status}",
-            f"Messages exported so far: {self._messages_exported}",
+            f"Current media downloader status: {self._media_status}",
+            f"Media files in media downloader queue: {self._media_queue}",
             f"Approximately messages count: {self._approx_messages_count or '?'}",
-            progress
+            f"Messages loaded: {self._messages_loaded if self._messages_loaded else self._messages_exported}",
+            load_progress,
+            f"Messages exported: {self._messages_exported}",
+            exp_progress,
         ]
         for idx, line in enumerate(out):
             if len(line) > cols:

@@ -17,7 +17,8 @@ async def _main(session_name: str, api_id: int, api_hash: str, config: ExportCon
     async with Client(f"{Path.home()}/.texport/{session_name}", api_id=api_id, api_hash=api_hash) as client:
         exporter = Exporter(client, config)
         await exporter.export()
-        print("Export complete!")
+        if config.print:
+            print("Export complete!")
 
 
 @click.command()
@@ -44,11 +45,12 @@ async def _main(session_name: str, api_id: int, api_hash: str, config: ExportCon
 @click.option("--stickers/--no-stickers", default=True, help="Download stickers or not.")
 @click.option("--gifs/--no-gifs", default=True, help="Download gifs or not.")
 @click.option("--documents/--no-documents", default=True, help="Download documents or not.")
-@click.option("--quiet", default=False, help="Do not print progress to console.")
+@click.option("--quiet", "-q", is_flag=True, default=False, help="Do not print progress to console.")
+@click.option("--no-preload", is_flag=True, default=False, help="Do not preload all messages.")
 def main(
         session_name: str, api_id: int, api_hash: str, chat_id: str, output: str, size_limit: int, from_date: str,
         to_date: str, photos: bool, videos: bool, voice: bool, video_notes: bool, stickers: bool, gifs: bool,
-        documents: bool, quiet: bool,
+        documents: bool, quiet: bool, no_preload: bool,
 ) -> None:
     home = Path.home()
     texport_dir = home / ".texport"
@@ -69,6 +71,7 @@ def main(
         export_gifs=gifs,
         export_files=documents,
         print=not quiet,
+        preload=not no_preload,
     )
 
     if session_name.endswith(".session"):

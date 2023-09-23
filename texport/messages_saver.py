@@ -41,6 +41,8 @@ class MessagesSaver:
         output = Export(prev.chat.first_name, output).to_html()
         with open(f"{out_dir}/messages{self.part}.html", "w", encoding="utf8") as f:
             f.write(output)
+            
+        self.part += 1
 
     async def save(self) -> None:
         loop = get_running_loop()
