@@ -3,6 +3,7 @@ from datetime import date
 from typing import Union
 
 from pyrogram import Client
+from pyrogram.enums import MessageMediaType
 from pyrogram.types import Message as PyroMessage
 from pyrogram.utils import zero_datetime
 
@@ -31,14 +32,15 @@ class Exporter:
             return
         m = MEDIA_TYPES[message.media]
         media = m.get_media(message)
-        if media.file_size > self._config.size_limit * 1024 * 1024:
+        if m.has_size_limit and media.file_size > self._config.size_limit * 1024 * 1024:
             return
 
-        self._media_downloader.add(media.file_id, f"{self._config.output_dir.absolute()}/{m.dir_name}/", message.id)
+        if m.downloadable:
+            self._media_downloader.add(media.file_id, f"{self._config.output_dir.absolute()}/{m.dir_name}/", message.id)
 
-        if hasattr(media, "thumbs") and media.thumbs:
-            self._media_downloader.add(media.thumbs[0].file_id, f"{self._config.output_dir.absolute()}/thumbs/",
-                                       f"{message.id}_thumb")
+            if hasattr(media, "thumbs") and media.thumbs:
+                self._media_downloader.add(media.thumbs[0].file_id, f"{self._config.output_dir.absolute()}/thumbs/",
+                                           f"{message.id}_thumb")
 
     async def _write(self, wait_media: list[int]) -> None:
         self.progress.status = "Waiting for all media to be downloaded..."
@@ -69,7 +71,7 @@ class Exporter:
                 medias.append(f"{message.id}_thumb")
                 await self._export_media(message)
 
-            if not message.text and not message.caption and message.id not in self._media:
+            if not message.text and not message.caption and message.media not in MEDIA_TYPES:
                 continue
 
             self._messages.append(message)
