@@ -26,6 +26,22 @@ files = [
 ]
 
 [[package]]
+name = "lazy-imports"
+version = "0.3.1"
+description = "Tool to support lazy imports"
+optional = false
+python-versions = ">=3.6"
+files = [
+    {file = "lazy_imports-0.3.1-py3-none-any.whl", hash = "sha256:149500cb1015726f5148155989386b30b425dfd7e48fd156385eb1c9e23887dd"},
+    {file = "lazy_imports-0.3.1.tar.gz", hash = "sha256:636624104bf45b09761323e06292927832aca067c3c199e5de483738789aeb21"},
+]
+
+[package.extras]
+all = ["black", "flake8", "isort", "mdformat", "mypy", "packaging", "pydocstyle", "pylint", "pylintfileheader", "pytest"]
+checking = ["black", "flake8", "isort", "mdformat", "mypy", "pydocstyle", "pylint", "pylintfileheader"]
+testing = ["packaging", "pytest"]
+
+[[package]]
 name = "pyaes"
 version = "1.6.1"
 description = "Pure-Python Implementation of the AES block-cipher and common modes of operation"
@@ -36,19 +52,27 @@ files = [
 ]
 
 [[package]]
-name = "pyrogram"
-version = "2.0.106"
+name = "Pyrogram"
+version = "2.0.107"
 description = "Elegant, modern and asynchronous Telegram MTProto API framework in Python for users and bots"
 optional = false
 python-versions = "~=3.7"
-files = [
-    {file = "Pyrogram-2.0.106-py3-none-any.whl", hash = "sha256:32b62b3d93030b1080cbe45b88c0e8790cf4e2179cf3321ede810d48edf97bc7"},
-    {file = "Pyrogram-2.0.106.tar.gz", hash = "sha256:30202995758fcb6e0f91224704ab7fedefea454297724bd70a6a71a23748c16f"},
-]
+files = []
+develop = false
 
 [package.dependencies]
 pyaes = "1.6.1"
 pysocks = "1.7.1"
+
+[package.extras]
+lazy-imports = ["lazy-imports (>=0.3.1,<0.4.0)"]
+tgcrypto = ["tgcrypto"]
+
+[package.source]
+type = "git"
+url = "git@github.com:RuslanUC/pyrogram-exp.git"
+reference = "master"
+resolved_reference = "95c1e3660ea58ae6c431ce2e8f2f21ee857dca16"
 
 [[package]]
 name = "pysocks"
@@ -130,4 +154,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.9"
-content-hash = "8273564a55b69f4bb72f11f4804eef99bdffca32252708f5554d8aa1cf753ced"
+content-hash = "037b0b9447253386795fabb0bd0842ebc6cf752617f2fcb11f515e93aed15dc3"

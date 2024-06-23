@@ -14,7 +14,12 @@ from .exporter import Exporter
 
 
 async def _main(session_name: str, api_id: int, api_hash: str, config: ExportConfig) -> None:
-    async with Client(f"{Path.home()}/.texport/{session_name}", api_id=api_id, api_hash=api_hash) as client:
+    async with Client(
+            f"{Path.home()}/.texport/{session_name}",
+            api_id=api_id,
+            api_hash=api_hash,
+            no_updates=True,
+    ) as client:
         exporter = Exporter(client, config)
         await exporter.export()
         if config.print:

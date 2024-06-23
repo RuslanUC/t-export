@@ -3,7 +3,6 @@ from datetime import date
 from typing import Union
 
 from pyrogram import Client
-from pyrogram.enums import MessageMediaType
 from pyrogram.types import Message as PyroMessage
 from pyrogram.utils import zero_datetime
 

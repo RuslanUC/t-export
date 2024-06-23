@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "t-export"
-version = "0.1.2"
+version = "0.1.3b1"
 description = "Telegram chats export tool."
 authors = ["RuslanUC <dev_ruslan_uc@protonmail.com>"]
 readme = "README.md"
@@ -34,10 +34,9 @@ t_export = "texport.main:main"
 
 [tool.poetry.dependencies]
 python = "^3.9"
-pyrogram = "^2.0.106"
-tgcrypto = "^1.2.5"
 click = "^8.1.7"
 colorama = "^0.4.6"
+pyrogram = {git = "git@github.com:RuslanUC/pyrogram-exp.git", branch = "master", extras = ["tgcrypto", "lazy-imports"]}
 
 
 [build-system]
