@@ -31,7 +31,7 @@ class Exporter:
             return
         m = MEDIA_TYPES[message.media]
         media = m.get_media(message)
-        if m.has_size_limit and media.file_size > self._config.size_limit * 1024 * 1024:
+        if media is None or (m.has_size_limit and media.file_size > self._config.size_limit * 1024 * 1024):
             return
 
         if m.downloadable:

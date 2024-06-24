@@ -12,7 +12,7 @@ class Photo(HtmlMedia):
         self.thumb = media_thumb or media_path
         self.photo = photo = message.photo
 
-        self.size = file_size_str(photo.file_size)
+        self.size = file_size_str(photo.file_size if photo is not None else 0)
 
     def no_media(self) -> str:
         return f"""
