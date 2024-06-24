@@ -16,7 +16,7 @@ class Avatar(BaseComponent):
         return f"""
         <div class="pull_left userpic_wrap{forward}">
             <div class="userpic userpic8" style="width: 42px; height: 42px">
-                <div class="initials" style="line-height: 42px">{name[0]}</div>
+                <div class="initials" style="line-height: 42px">{name[0] if name is not None else "N"}</div>
             </div>
         </div>
         """

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "t-export"
-version = "0.1.3b2"
+version = "0.1.3b3"
 description = "Telegram chats export tool."
 authors = ["RuslanUC <dev_ruslan_uc@protonmail.com>"]
 readme = "README.md"
