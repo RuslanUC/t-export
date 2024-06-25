@@ -18,7 +18,7 @@ EXPORT_MEDIA = {
 
 @dataclass
 class ExportConfig:
-    chat_id: Union[str, int] = "me"
+    chat_ids: list[Union[str, int]] = field(default_factory=lambda: ["me"])
     output_dir: Path = Path("./telegram_export")
     export_photos: bool = True
     export_videos: bool = True

@@ -1,6 +1,7 @@
 import asyncio
 from asyncio import sleep, Task, Semaphore, create_task
 from os.path import relpath
+from pathlib import Path
 from typing import Union, Optional
 
 from pyrogram import Client
@@ -42,8 +43,7 @@ class MediaExporter:
                 self._downloading.pop(out_id, None)
                 self.ids.discard(out_id)
 
-        path = relpath(path, self.config.output_dir.absolute())
-        self.output[out_id] = path
+        self.output[out_id] = relpath(path, Path(download_dir).parent.absolute())
 
     def _status(self, status: str=None) -> None:
         with self.progress.update():

@@ -19,7 +19,10 @@ class MessagesSaver:
 
     def _save(self) -> None:
         out_dir = self.config.output_dir
-        if not exists(out_dir / "js") or exists(out_dir / "images") or exists(out_dir / "css"):
+        if self.messages:
+            out_dir = out_dir / str(self.messages[0].chat.id)
+
+        if not exists(out_dir / "js") or not exists(out_dir / "images") or not exists(out_dir / "css"):
             unpack_to(out_dir)
 
         output = ""

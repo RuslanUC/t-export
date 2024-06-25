@@ -33,7 +33,7 @@ async def _main(session_name: str, api_id: int, api_hash: str, config: ExportCon
               help="Telegram api hash. Saved in ~/.texport/config.json file.")
 @click.option("--session-name", "-s", type=click.STRING, default="main",
               help="Pyrogram session name or path to existing file. Saved in ~/.texport/<session_name>.session file.")
-@click.option("--chat-id", "-c", type=click.STRING, default="me",
+@click.option("--chat-id", "-c", type=click.STRING, default=["me"], multiple=True,
               help="Chat id or username or phone number. \"me\" or \"self\" to export saved messages.")
 @click.option("--output", "-o", type=click.STRING, default="./telegram_export",
               help="Output directory.")
@@ -55,7 +55,7 @@ async def _main(session_name: str, api_id: int, api_hash: str, config: ExportCon
 @click.option("--max-concurrent-downloads", "-d", type=click.INT, default=4,
               help="Number of concurrent media downloads.")
 def main(
-        session_name: str, api_id: int, api_hash: str, chat_id: str, output: str, size_limit: int, from_date: str,
+        session_name: str, api_id: int, api_hash: str, chat_id: list[str], output: str, size_limit: int, from_date: str,
         to_date: str, photos: bool, videos: bool, voice: bool, video_notes: bool, stickers: bool, gifs: bool,
         documents: bool, quiet: bool, no_preload: bool, max_concurrent_downloads: int,
 ) -> None:
@@ -65,7 +65,7 @@ def main(
     makedirs(output, exist_ok=True)
 
     config = ExportConfig(
-        chat_id=chat_id,
+        chat_ids=chat_id,
         output_dir=Path(output),
         size_limit=size_limit,
         from_date=datetime.strptime(from_date, "%d.%m.%Y"),
