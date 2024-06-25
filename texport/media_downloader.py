@@ -1,5 +1,5 @@
 import asyncio
-from asyncio import sleep
+from asyncio import sleep, Task, Semaphore, create_task
 from os.path import relpath
 from typing import Union, Optional
 
@@ -22,6 +22,8 @@ class MediaExporter:
         self.progress = progress
 
         self._running = False
+        self._downloading: dict[Union[str, int], ...] = {}
+        self._sem = Semaphore(self.config.max_concurrent_downloads)
 
     def add(self, file_id: str, download_dir: str, out_id: Union[str, int]) -> None:
         if out_id in self.all_ids: return
@@ -31,28 +33,34 @@ class MediaExporter:
         self._status()
 
     async def _download(self, file_id: str, download_dir: str, out_id: Union[str, int]) -> None:
-        try:
-            path = await self.client.download_media(file_id, file_name=download_dir)
-        except RPCError:
-            return
+        async with self._sem:
+            try:
+                path = await self.client.download_media(file_id, file_name=download_dir)
+            except RPCError:
+                return
+            finally:
+                self._downloading.pop(out_id, None)
+                self.ids.discard(out_id)
+
         path = relpath(path, self.config.output_dir.absolute())
         self.output[out_id] = path
 
     def _status(self, status: str=None) -> None:
         with self.progress.update():
             self.progress.media_status = status or self.progress.media_status
-            self.progress.media_queue = len(self.queue)
+            self.progress.media_queue = len(self.queue) + len(self._downloading)
 
     async def _task(self) -> None:
+        # use create_task and semaphore
+        downloading: dict[Union[str, int], Task] = {}
         while self._running:
-            if not self.queue:
+            if not self.queue and not downloading:
                 self._status("Idle...")
                 await sleep(.1)
                 continue
             self._status("Downloading...")
-            await self._download(*self.queue[0])
-            _, _, task_id = self.queue.pop(0)
-            self.ids.discard(task_id)
+            *args, task_id = self.queue.pop(0)
+            self._downloading[task_id] = create_task(self._download(*args, task_id))
 
         self._status("Stopped...")
 
@@ -66,7 +74,7 @@ class MediaExporter:
 
     async def wait(self, messages: Optional[list[int]]=None) -> None:
         messages = set(messages) if messages is not None else None
-        while self._running and self.queue:
+        while self._running and (self.queue or self._downloading):
             if messages is not None and not messages.intersection(self.ids):
                 break
             await sleep(.1)

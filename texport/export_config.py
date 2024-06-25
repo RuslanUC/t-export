@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Union
@@ -32,6 +32,7 @@ class ExportConfig:
     to_date: datetime = datetime.now()
     print: bool = False
     preload: bool = False
+    max_concurrent_downloads: int = 4
 
     def excluded_media(self) -> set[MessageMediaType]:
         result = set()
@@ -39,3 +40,7 @@ class ExportConfig:
             if not getattr(self, f"export_{media_type}"):
                 result.add(EXPORT_MEDIA[media_type])
         return result
+
+    def __post_init__(self):
+        if self.max_concurrent_downloads <= 0:
+            self.max_concurrent_downloads = 4

@@ -52,10 +52,12 @@ async def _main(session_name: str, api_id: int, api_hash: str, config: ExportCon
 @click.option("--documents/--no-documents", default=True, help="Download documents or not.")
 @click.option("--quiet", "-q", is_flag=True, default=False, help="Do not print progress to console.")
 @click.option("--no-preload", is_flag=True, default=False, help="Do not preload all messages.")
+@click.option("--max-concurrent-downloads", "-d", type=click.INT, default=4,
+              help="Number of concurrent media downloads.")
 def main(
         session_name: str, api_id: int, api_hash: str, chat_id: str, output: str, size_limit: int, from_date: str,
         to_date: str, photos: bool, videos: bool, voice: bool, video_notes: bool, stickers: bool, gifs: bool,
-        documents: bool, quiet: bool, no_preload: bool,
+        documents: bool, quiet: bool, no_preload: bool, max_concurrent_downloads: int,
 ) -> None:
     home = Path.home()
     texport_dir = home / ".texport"
@@ -77,6 +79,7 @@ def main(
         export_files=documents,
         print=not quiet,
         preload=not no_preload,
+        max_concurrent_downloads=max_concurrent_downloads,
     )
 
     if session_name.endswith(".session"):
