@@ -1,13 +1,26 @@
 import asyncio
+from asyncio import sleep
 from datetime import date
-from typing import Union
+from typing import Union, TypeVar, Callable, Optional
 
 from pyrogram import Client
+from pyrogram.errors import FloodWait
 from pyrogram.types import Message as PyroMessage
 from pyrogram.utils import zero_datetime
 
 from . import ExportConfig, MediaExporter, Preloader, MessagesSaver, ProgressPrint
 from .media import MEDIA_TYPES
+
+
+T = TypeVar("T")
+
+
+async def _flood_wait(func: Callable[[...], T], *args, **kwargs) -> Optional[T]:
+    for i in range(5):
+        try:
+            return await func(*args, **kwargs)
+        except FloodWait as e:
+            await sleep(e.value + 1)
 
 
 class Exporter:
@@ -50,7 +63,7 @@ class Exporter:
         loaded = 0
         medias = []
         for chat_id in self._config.chat_ids:
-            self.progress.approx_messages_count += await self._client.get_chat_history_count(chat_id)
+            self.progress.approx_messages_count += await _flood_wait(self._client.get_chat_history_count, chat_id) or 0
         messages_iter = Preloader(self._client, self.progress, self._config.chat_ids, self._export_media) \
             if self._config.preload else self._client.get_chat_history
 
