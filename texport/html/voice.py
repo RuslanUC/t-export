@@ -9,7 +9,7 @@ class Voice(HtmlMedia):
         self.path = media_path
         self.voice = voice = message.voice
 
-        duration = voice.duration
+        duration = voice.duration or 0
         self.minutes = duration // 60
         self.seconds = duration % 60
         self.size = file_size_str(voice.file_size)

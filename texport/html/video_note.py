@@ -12,7 +12,7 @@ class VideoNote(HtmlMedia):
         self.thumb = media_thumb
         self.video_note = video_note = message.video_note
 
-        duration = video_note.duration
+        duration = video_note.duration or 0
         self.minutes = duration // 60
         self.seconds = duration % 60
         self.size = file_size_str(video_note.file_size)

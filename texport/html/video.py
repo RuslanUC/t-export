@@ -12,7 +12,7 @@ class Video(HtmlMedia):
         self.thumb = media_thumb or media_path
         self.video = video = message.video
 
-        duration = video.duration
+        duration = video.duration or 0
         self.minutes = duration // 60
         self.seconds = duration % 60
         self.size = file_size_str(video.file_size)

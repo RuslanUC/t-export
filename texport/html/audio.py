@@ -9,7 +9,7 @@ class Audio(HtmlMedia):
         self.path = media_path
         self.audio = audio = message.audio
 
-        duration = audio.duration
+        duration = audio.duration or 0
         self.minutes = duration // 60
         self.seconds = duration % 60
         self.size = file_size_str(audio.file_size)
