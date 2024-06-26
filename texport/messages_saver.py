@@ -1,4 +1,5 @@
 from asyncio import get_running_loop
+from collections import defaultdict
 from os.path import exists
 from typing import Union, Optional
 
@@ -12,7 +13,7 @@ from .resources import unpack_to
 
 class MessagesSaver:
     def __init__(self, messages: list[PyroMessage], media: dict[Union[int, str], str], config: ExportConfig):
-        self.part = 0
+        self.parts = defaultdict(lambda: 0)
         self.messages = messages
         self.media = media
         self.config = config
@@ -42,10 +43,10 @@ class MessagesSaver:
             prev = message
 
         output = Export(prev.chat.first_name, output).to_html()
-        with open(f"{out_dir}/messages{self.part}.html", "w", encoding="utf8") as f:
+        with open(f"{out_dir}/messages{self.parts[prev.chat.id]}.html", "w", encoding="utf8") as f:
             f.write(output)
             
-        self.part += 1
+        self.parts[prev.chat.id] += 1
 
     async def save(self) -> None:
         loop = get_running_loop()
