@@ -1,21 +1,22 @@
 import asyncio
 from asyncio import sleep
-from datetime import date
-from typing import TypeVar, Callable
+from time import time
+from typing import TypeVar, Callable, ParamSpec
 
 from pyrogram import Client
 from pyrogram.errors import FloodWait
+from pyrogram.raw.functions.messages import GetHistory
+from pyrogram.raw.types.messages import Messages, MessagesSlice
 from pyrogram.types import Message as PyroMessage
-from pyrogram.utils import zero_datetime
 
 from . import ExportConfig, MediaExporter, Preloader, MessagesSaver, ProgressPrint
 from .media import MEDIA_TYPES
 
-
 T = TypeVar("T")
+P = ParamSpec("P")
 
 
-async def _flood_wait(func: Callable[[...], T], *args, **kwargs) -> T | None:
+async def _flood_wait(func: Callable[P, T], *args: P.args, **kwargs: P.kwargs) -> T | None:
     for i in range(5):
         try:
             return await func(*args, **kwargs)
@@ -47,9 +48,10 @@ class Exporter:
         if m.downloadable:
             chat_output_dir = (self._config.output_dir / f"{message.chat.id}").absolute()
 
-            self._media_downloader.add(media.file_id, f"{chat_output_dir}/{m.dir_name}/", message.id)
+            self._media_downloader.add(media.file_id, f"{chat_output_dir}/{m.dir_name}/", message.id, media.file_size)
             if hasattr(media, "thumbs") and media.thumbs:
-                self._media_downloader.add(media.thumbs[0].file_id, f"{chat_output_dir}/thumbs/", f"{message.id}_thumb")
+                thumb = media.thumbs[0]
+                self._media_downloader.add(thumb.file_id, f"{chat_output_dir}/thumbs/", f"{message.id}_thumb", thumb.file_size)
 
     async def _write(self, wait_media: list[int]) -> None:
         self.progress.status = "Waiting for all media to be downloaded..."
@@ -57,22 +59,72 @@ class Exporter:
         self.progress.status = "Writing messages to file..."
         await self._saver.save()
 
+    async def _get_min_max_ids(self, chat_id: int | str) -> tuple[int, int]:
+        from_date = int(self._config.from_date.timestamp())
+        to_date = int(self._config.to_date.timestamp())
+
+        date_offset_min = (from_date - 1) if from_date > 0 else 0
+        date_offset_max = (to_date + 86400) if to_date < time() else 0
+
+        peer = await self._client.resolve_peer(chat_id)
+        min_messages: Messages | MessagesSlice = await self._client.invoke(GetHistory(
+            peer=peer, offset_date=date_offset_min, offset_id=0, add_offset=0, limit=1, max_id=0, min_id=0, hash=0,
+        ))
+        max_messages: Messages | MessagesSlice = await self._client.invoke(GetHistory(
+            peer=peer, offset_date=date_offset_max, offset_id=0, add_offset=0, limit=1, max_id=0, min_id=0, hash=0,
+        ))
+
+        min_messages: list[PyroMessage] = min_messages.messages
+        max_messages: list[PyroMessage] = max_messages.messages
+
+        min_message_id = min_messages[0].id if min_messages else 0
+        max_message_id = max_messages[0].id if max_messages else 0
+
+        return min_message_id, max_message_id
+
+
     async def _export(self):
         await self._media_downloader.run()
 
-        offset_date = zero_datetime() if self._config.to_date.date() >= date.today() else self._config.to_date
         loaded = 0
         medias = []
+        message_ranges: dict[int | str, tuple[int, int]] = {}
+        counts: dict[int | str, int] = {}
         for chat_id in self._config.chat_ids:
-            self.progress.approx_messages_count += await _flood_wait(self._client.get_chat_history_count, chat_id) or 0
+            message_ranges[chat_id] = await self._get_min_max_ids(chat_id)
+            min_id, max_id = message_ranges[chat_id]
+            id_diff = (max_id - min_id) if min_id > 0 and max_id > 0 else (2 ** 31 - 1)
+
+            if not self._config.count_messages:
+                continue
+
+            resp = await _flood_wait(self._client.invoke, GetHistory(
+                peer=await self._client.resolve_peer(chat_id),
+                offset_id=max_id,
+                offset_date=0,
+                add_offset=0,
+                limit=1,
+                max_id=0,
+                min_id=min_id,
+                hash=0,
+            ))
+
+            if resp is None:
+                count = 0
+            elif isinstance(resp, Messages):
+                count = min(len(resp.messages), id_diff)
+            else:
+                count = min(resp.count, id_diff)
+
+            counts[chat_id] = count
+            self.progress.approx_messages_count += count
+
         messages_iter = Preloader(self._client, self.progress, self._config.chat_ids, self._export_media) \
             if self._config.preload else self._client.get_chat_history
 
-        for chat_id in self._config.chat_ids:
-            async for message in messages_iter(chat_id, offset_date=offset_date):
-                if message.date < self._config.from_date:
-                    break
-
+        for chat_id, (min_id, max_id) in message_ranges.items():
+            loaded_start = loaded
+            async for message in messages_iter(chat_id, min_id=min_id, max_id=max_id):
                 loaded += 1
                 with self.progress.update():
                     self.progress.status = "Exporting messages..."
@@ -87,11 +139,20 @@ class Exporter:
                     continue
 
                 self._messages.append(message)
-                if len(self._messages) > 1000:
+                if len(self._messages) > self._config.write_threshold:
                     await self._write(medias)
 
             if self._messages:
                 await self._write(medias)
+
+            if chat_id in counts:
+                old_count = counts[chat_id]
+                real_count = loaded - loaded_start
+                with self.progress.update():
+                    self.progress.approx_messages_count -= old_count
+                    self.progress.approx_messages_count += real_count
+
+                counts[chat_id] = real_count
 
         self._task = None
 

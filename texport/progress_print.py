@@ -16,6 +16,10 @@ class ProgressPrint:
         self._media_status = "Idle..."
         self._media_queue = 0
 
+        self._media_bytes = 0
+        self._media_down_bytes = 0
+        self._media_fail_bytes = 0
+
         self._disabled = disabled
 
         self.do_update = ContextVar('do_update')
@@ -93,9 +97,48 @@ class ProgressPrint:
         if self.do_update.get():
             self._update()
 
-    def _progress(self, value: int, cols: int) -> str:
-        if self._approx_messages_count:
-            cols_done = int((value / self._approx_messages_count) * (cols - 2))
+    @property
+    def media_bytes(self) -> int:
+        return self._media_bytes
+
+    @media_bytes.setter
+    def media_bytes(self, value: int) -> None:
+        if self._media_bytes == value: return
+
+        self._media_bytes = value
+        if self.do_update.get():
+            self._update()
+
+    @property
+    def media_down_bytes(self) -> int:
+        return self._media_down_bytes
+
+    @media_down_bytes.setter
+    def media_down_bytes(self, value: int) -> None:
+        if self._media_down_bytes == value: return
+
+        self._media_down_bytes = value
+        if self.do_update.get():
+            self._update()
+
+    @property
+    def media_fail_bytes(self) -> int:
+        return self._media_fail_bytes
+
+    @media_fail_bytes.setter
+    def media_fail_bytes(self, value: int) -> None:
+        if self._media_fail_bytes == value: return
+
+        self._media_fail_bytes = value
+        if self.do_update.get():
+            self._update()
+
+    def _progress(self, value: int, cols: int, total: int | None = None) -> str:
+        if total is None:
+            total = self._approx_messages_count
+
+        if total:
+            cols_done = int((value / total) * (cols - 2))
             cols_remain = int(cols - 2 - cols_done)
             return f"[{'#' * cols_done}{'-' * cols_remain}]"
         else:
@@ -105,14 +148,22 @@ class ProgressPrint:
     def _update(self) -> None:
         if self._disabled: return
 
+        total_mb = self._media_bytes / 1024 / 1024
+        down_mb = self._media_down_bytes / 1024 / 1024
+        fail_mb = self._media_fail_bytes / 1024 / 1024
+
         cols, _ = shutil.get_terminal_size((80, 20))
         exp_progress = self._progress(self._messages_exported, cols)
         load_progress = self._progress(self._messages_loaded, cols) if self._messages_loaded else exp_progress
+        media_progress = self._progress(self._media_down_bytes + self._media_fail_bytes, cols, self._media_bytes)
         out = [
             f"Current status: {self._status}",
             f"Current media downloader status: {self._media_status}",
             f"Media files in media downloader queue: {self._media_queue}",
             f"Approximately messages count: {self._approx_messages_count or '?'}",
+            f"Media loaded: {down_mb + fail_mb:.2f}MB/{total_mb:.2f}MB"
+            +(f"({fail_mb:.2f}MB failed)" if self._media_fail_bytes else ""),
+            media_progress,
             f"Messages loaded: {self._messages_loaded if self._messages_loaded else self._messages_exported}",
             load_progress,
             f"Messages exported: {self._messages_exported}",

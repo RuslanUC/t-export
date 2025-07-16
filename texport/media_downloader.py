@@ -16,29 +16,35 @@ class MediaExporter:
         self.config = config
         self.output = media_dict
         self.task = None
-        self.queue: list[tuple[str, str, str | int]] = []
+        self.queue: list[tuple[str, str, str | int, int]] = []
         self.ids: set[str | int] = set()
         self.all_ids: set[str | int] = set()
         self.progress = progress
+        self.downloaded_bytes = 0
+        self.total_bytes = 0
+        self.failed_bytes = 0
 
         self._running = False
         self._downloading: dict[str | int, ...] = {}
         self._sem = Semaphore(self.config.max_concurrent_downloads)
 
-    def add(self, file_id: str, download_dir: str, out_id: str | int) -> None:
+    def add(self, file_id: str, download_dir: str, out_id: str | int, size: int) -> None:
         if out_id in self.all_ids: return
-        self.queue.append((file_id, download_dir, out_id))
+        self.total_bytes += size
+        self.queue.append((file_id, download_dir, out_id, size))
         self.ids.add(out_id)
         self.all_ids.add(out_id)
         self._status()
 
-    async def _download(self, file_id: str, download_dir: str, out_id: str | int) -> None:
+    async def _download(self, file_id: str, download_dir: str, out_id: str | int, size: int) -> None:
         async with self._sem:
             try:
                 path = await self.client.download_media(file_id, file_name=download_dir)
             except RPCError:
+                self.failed_bytes += size
                 return
             finally:
+                self.downloaded_bytes += size
                 self._downloading.pop(out_id, None)
                 self.ids.discard(out_id)
 
@@ -48,6 +54,9 @@ class MediaExporter:
         with self.progress.update():
             self.progress.media_status = status or self.progress.media_status
             self.progress.media_queue = len(self.queue) + len(self._downloading)
+            self.progress.media_bytes = self.total_bytes
+            self.progress.media_down_bytes = self.downloaded_bytes
+            self.progress.media_fail_bytes = self.failed_bytes
 
     async def _task(self) -> None:
         # use create_task and semaphore

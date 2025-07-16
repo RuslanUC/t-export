@@ -33,6 +33,8 @@ class ExportConfig:
     preload: bool = False
     max_concurrent_downloads: int = 4
     use_takeout_api: bool = False
+    count_messages: bool = True
+    write_threshold: int = 1000
 
     def excluded_media(self) -> set[MessageMediaType]:
         result = set()
