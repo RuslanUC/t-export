@@ -1,7 +1,6 @@
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, UTC
 from pathlib import Path
-from typing import Union
 
 from pyrogram.enums import MessageMediaType
 
@@ -18,7 +17,7 @@ EXPORT_MEDIA = {
 
 @dataclass
 class ExportConfig:
-    chat_ids: list[Union[str, int]] = field(default_factory=lambda: ["me"])
+    chat_ids: list[str | int] = field(default_factory=lambda: ["me"])
     output_dir: Path = Path("./telegram_export")
     export_photos: bool = True
     export_videos: bool = True
@@ -33,6 +32,7 @@ class ExportConfig:
     print: bool = False
     preload: bool = False
     max_concurrent_downloads: int = 4
+    use_takeout_api: bool = False
 
     def excluded_media(self) -> set[MessageMediaType]:
         result = set()
@@ -44,3 +44,5 @@ class ExportConfig:
     def __post_init__(self):
         if self.max_concurrent_downloads <= 0:
             self.max_concurrent_downloads = 4
+        self.from_date = self.from_date.replace(tzinfo=UTC)
+        self.to_date = self.to_date.replace(tzinfo=UTC)

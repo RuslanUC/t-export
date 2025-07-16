@@ -1,5 +1,3 @@
-from typing import Optional
-
 from .base import HtmlMedia
 from pyrogram.types import Message as PyroMessage
 
@@ -7,7 +5,7 @@ from .utils import file_size_str
 
 
 class Video(HtmlMedia):
-    def __init__(self, media_path: str, media_thumb: Optional[str], message: PyroMessage):
+    def __init__(self, media_path: str, media_thumb: str | None, message: PyroMessage):
         self.path = media_path
         self.thumb = media_thumb or media_path
         self.video = video = message.video

@@ -1,7 +1,7 @@
 import asyncio
 from asyncio import sleep
 from datetime import date
-from typing import Union, TypeVar, Callable, Optional
+from typing import TypeVar, Callable
 
 from pyrogram import Client
 from pyrogram.errors import FloodWait
@@ -15,7 +15,7 @@ from .media import MEDIA_TYPES
 T = TypeVar("T")
 
 
-async def _flood_wait(func: Callable[[...], T], *args, **kwargs) -> Optional[T]:
+async def _flood_wait(func: Callable[[...], T], *args, **kwargs) -> T | None:
     for i in range(5):
         try:
             return await func(*args, **kwargs)
@@ -30,7 +30,7 @@ class Exporter:
         self._task = None
         self.progress: ProgressPrint = ProgressPrint(disabled=not self._config.print)
         self._messages: list[PyroMessage] = []
-        self._media: dict[Union[int, str], str] = {}
+        self._media: dict[int | str, str] = {}
         self._saver = MessagesSaver(self._messages, self._media, export_config)
         self._media_downloader = MediaExporter(client, export_config, self._media, self.progress)
         self._excluded_media = self._config.excluded_media()

@@ -1,7 +1,4 @@
-from typing import Optional
-
-
-def file_size_str(size: Optional[int]) -> str:
+def file_size_str(size: int | None) -> str:
     if size is None:
         return "Unknown"
 

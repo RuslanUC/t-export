@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "t-export"
-version = "0.1.3b8"
+version = "0.2.0b1"
 description = "Telegram chats export tool."
 authors = ["RuslanUC <dev_ruslan_uc@protonmail.com>"]
 readme = "README.md"
@@ -14,9 +14,10 @@ classifiers = [
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Typing :: Typed",
     "Topic :: Internet",
 ]
@@ -33,10 +34,10 @@ texport = "texport.main:main"
 t_export = "texport.main:main"
 
 [tool.poetry.dependencies]
-python = "^3.9"
-click = "^8.1.7"
+python = "^3.11"
+click = "^8.2.1"
 colorama = "^0.4.6"
-pyrotgfork = {extras = ["fast"], version = "^2.1.32.9"}
+pyrotgfork = {extras = ["fast"], version = "^2.2.13"}
 
 
 [build-system]

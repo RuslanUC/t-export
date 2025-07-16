@@ -1,7 +1,6 @@
 from asyncio import get_running_loop
 from collections import defaultdict
 from os.path import exists
-from typing import Union, Optional
 
 from pyrogram.types import Message as PyroMessage
 
@@ -12,7 +11,7 @@ from .resources import unpack_to
 
 
 class MessagesSaver:
-    def __init__(self, messages: list[PyroMessage], media: dict[Union[int, str], str], config: ExportConfig):
+    def __init__(self, messages: list[PyroMessage], media: dict[int | str, str], config: ExportConfig):
         self.parts = defaultdict(lambda: 0)
         self.messages = messages
         self.media = media
@@ -27,7 +26,7 @@ class MessagesSaver:
             unpack_to(out_dir)
 
         output = ""
-        prev: Optional[PyroMessage] = None
+        prev: PyroMessage | None = None
         dates = 0
         while self.messages:
             message = self.messages.pop(0)

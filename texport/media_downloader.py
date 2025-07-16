@@ -2,7 +2,6 @@ import asyncio
 from asyncio import sleep, Task, Semaphore, create_task
 from os.path import relpath
 from pathlib import Path
-from typing import Union, Optional
 
 from pyrogram import Client
 from pyrogram.errors import RPCError
@@ -17,23 +16,23 @@ class MediaExporter:
         self.config = config
         self.output = media_dict
         self.task = None
-        self.queue: list[tuple[str, str, Union[str, int]]] = []
-        self.ids: set[Union[str, int]] = set()
-        self.all_ids: set[Union[str, int]] = set()
+        self.queue: list[tuple[str, str, str | int]] = []
+        self.ids: set[str | int] = set()
+        self.all_ids: set[str | int] = set()
         self.progress = progress
 
         self._running = False
-        self._downloading: dict[Union[str, int], ...] = {}
+        self._downloading: dict[str | int, ...] = {}
         self._sem = Semaphore(self.config.max_concurrent_downloads)
 
-    def add(self, file_id: str, download_dir: str, out_id: Union[str, int]) -> None:
+    def add(self, file_id: str, download_dir: str, out_id: str | int) -> None:
         if out_id in self.all_ids: return
         self.queue.append((file_id, download_dir, out_id))
         self.ids.add(out_id)
         self.all_ids.add(out_id)
         self._status()
 
-    async def _download(self, file_id: str, download_dir: str, out_id: Union[str, int]) -> None:
+    async def _download(self, file_id: str, download_dir: str, out_id: str | int) -> None:
         async with self._sem:
             try:
                 path = await self.client.download_media(file_id, file_name=download_dir)
@@ -52,7 +51,7 @@ class MediaExporter:
 
     async def _task(self) -> None:
         # use create_task and semaphore
-        downloading: dict[Union[str, int], Task] = {}
+        downloading: dict[str | int, Task] = {}
         while self._running:
             if not self.queue and not downloading:
                 self._status("Idle...")
@@ -72,7 +71,7 @@ class MediaExporter:
         await self.wait()
         self._running = False
 
-    async def wait(self, messages: Optional[list[int]]=None) -> None:
+    async def wait(self, messages: list[int] | None = None) -> None:
         messages = set(messages) if messages is not None else None
         while self._running and (self.queue or self._downloading):
             if messages is not None and not messages.intersection(self.ids):

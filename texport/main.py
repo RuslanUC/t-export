@@ -54,10 +54,11 @@ async def _main(session_name: str, api_id: int, api_hash: str, config: ExportCon
 @click.option("--no-preload", is_flag=True, default=False, help="Do not preload all messages.")
 @click.option("--max-concurrent-downloads", "-d", type=click.INT, default=4,
               help="Number of concurrent media downloads.")
+@click.option("--takeout", is_flag=True, default=False, help="Use takeout api.")
 def main(
         session_name: str, api_id: int, api_hash: str, chat_id: list[str], output: str, size_limit: int, from_date: str,
         to_date: str, photos: bool, videos: bool, voice: bool, video_notes: bool, stickers: bool, gifs: bool,
-        documents: bool, quiet: bool, no_preload: bool, max_concurrent_downloads: int,
+        documents: bool, quiet: bool, no_preload: bool, max_concurrent_downloads: int, takeout: bool,
 ) -> None:
     home = Path.home()
     texport_dir = home / ".texport"
@@ -80,6 +81,7 @@ def main(
         print=not quiet,
         preload=not no_preload,
         max_concurrent_downloads=max_concurrent_downloads,
+        use_takeout_api=takeout,
     )
 
     if session_name.endswith(".session"):

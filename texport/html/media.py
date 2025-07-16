@@ -1,5 +1,3 @@
-from typing import Optional
-
 from pyrogram.types import Message as PyroMessage
 
 from .base import BaseComponent
@@ -7,7 +5,7 @@ from ..media import MEDIA_TYPES
 
 
 class Media(BaseComponent):
-    def __init__(self, message: PyroMessage, media_path: str, media_thumb: Optional[str], media_args: dict=None):
+    def __init__(self, message: PyroMessage, media_path: str, media_thumb: str | None, media_args: dict=None):
         self.message = message
         self.media_path = media_path
         self.media_thumb = media_thumb

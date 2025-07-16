@@ -1,5 +1,4 @@
 from abc import abstractmethod, ABC
-from typing import Optional
 from pyrogram.types import Message as PyroMessage
 
 
@@ -47,7 +46,7 @@ class Export(BaseComponent):
 
 class HtmlMedia(BaseComponent, ABC):
     @abstractmethod
-    def __init__(self, media_path: str, media_thumb: Optional[str], message: PyroMessage): ...
+    def __init__(self, media_path: str, media_thumb: str | None, message: PyroMessage): ...
 
     @abstractmethod
     def no_media(self) -> str: ...
