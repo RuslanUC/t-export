@@ -57,11 +57,13 @@ async def _main(session_name: str, api_id: int, api_hash: str, config: ExportCon
 @click.option("--takeout", is_flag=True, default=False, help="Use takeout api.")
 @click.option("--no-count", is_flag=True, default=False, help="Do not count messages that will be exported.")
 @click.option("--write-threshold", "-w", type=click.INT, default=1000, help="Messages write threshold.")
+@click.option("--all-media-wait", is_flag=True, default=False,
+              help="Write messages without waiting for ALL media to download.")
 def main(
         session_name: str, api_id: int, api_hash: str, chat_id: list[str], output: str, size_limit: int, from_date: str,
         to_date: str, photos: bool, videos: bool, voice: bool, video_notes: bool, stickers: bool, gifs: bool,
         documents: bool, quiet: bool, no_preload: bool, max_concurrent_downloads: int, takeout: bool, no_count: bool,
-        write_threshold: int,
+        write_threshold: int, all_media_wait: bool,
 ) -> None:
     home = Path.home()
     texport_dir = home / ".texport"
@@ -87,6 +89,7 @@ def main(
         use_takeout_api=takeout,
         count_messages=not no_count,
         write_threshold=write_threshold,
+        partial_writes=not all_media_wait,
     )
 
     if session_name.endswith(".session"):

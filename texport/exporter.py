@@ -11,6 +11,7 @@ from pyrogram.types import Message as PyroMessage
 
 from . import ExportConfig, MediaExporter, Preloader, MessagesSaver, ProgressPrint
 from .media import MEDIA_TYPES
+from .messages_saver import MessageToSave
 
 T = TypeVar("T")
 P = ParamSpec("P")
@@ -30,11 +31,11 @@ class Exporter:
         self._client = client
         self._task = None
         self.progress: ProgressPrint = ProgressPrint(disabled=not self._config.print)
-        self._messages: list[PyroMessage] = []
         self._media: dict[int | str, str] = {}
-        self._saver = MessagesSaver(self._messages, self._media, export_config)
+        self._saver = MessagesSaver(self._media, export_config)
         self._media_downloader = MediaExporter(client, export_config, self._media, self.progress)
         self._excluded_media = self._config.excluded_media()
+        self._loop = asyncio.get_running_loop()
 
     async def _export_media(self, message: PyroMessage) -> None:
         if message.media not in MEDIA_TYPES or message.media in self._excluded_media:
@@ -53,11 +54,11 @@ class Exporter:
                 thumb = media.thumbs[0]
                 self._media_downloader.add(thumb.file_id, f"{chat_output_dir}/thumbs/", f"{message.id}_thumb", thumb.file_size)
 
-    async def _write(self, wait_media: list[int]) -> None:
-        self.progress.status = "Waiting for all media to be downloaded..."
-        await self._media_downloader.wait(wait_media)
+    async def _write(self, messages: list[MessageToSave]) -> None:
+        #self.progress.status = "Waiting for all media to be downloaded..."
+        #await self._media_downloader.wait(wait_media)
         self.progress.status = "Writing messages to file..."
-        await self._saver.save()
+        self._loop.create_task(self._saver.save(messages))
 
     async def _get_min_max_ids(self, chat_id: int | str) -> tuple[int, int]:
         from_date = int(self._config.from_date.timestamp())
@@ -87,7 +88,8 @@ class Exporter:
         await self._media_downloader.run()
 
         loaded = 0
-        medias = []
+        messages: list[MessageToSave] = []
+
         message_ranges: dict[int | str, tuple[int, int]] = {}
         counts: dict[int | str, int] = {}
         for chat_id in self._config.chat_ids:
@@ -130,20 +132,22 @@ class Exporter:
                     self.progress.status = "Exporting messages..."
                     self.progress.messages_exported = loaded
 
-                if message.media:
-                    medias.append(message.id)
-                    medias.append(f"{message.id}_thumb")
-                    await self._export_media(message)
-
                 if not message.text and not message.caption and message.media not in MEDIA_TYPES:
                     continue
 
-                self._messages.append(message)
-                if len(self._messages) > self._config.write_threshold:
-                    await self._write(medias)
+                if message.media:
+                    messages.append(MessageToSave(message, self._media_downloader))
+                    await self._export_media(message)
+                else:
+                    messages.append(MessageToSave(message, None))
 
-            if self._messages:
-                await self._write(medias)
+                if len(messages) >= self._config.write_threshold:
+                    await self._write(messages)
+                    messages = []
+
+            if messages:
+                await self._write(messages)
+                messages = []
 
             if chat_id in counts:
                 old_count = counts[chat_id]
@@ -167,4 +171,4 @@ class Exporter:
         if block:
             await coro
         else:
-            asyncio.get_event_loop().create_task(coro)
+            self._loop.create_task(coro)
