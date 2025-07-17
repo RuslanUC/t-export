@@ -8,11 +8,11 @@ from pyrogram import Client
 from pyrogram.errors import RPCError
 
 from .export_config import ExportConfig
-from .progress_print import ProgressPrint
+from .export_progress import ExportProgressInternal
 
 
 class MediaExporter:
-    def __init__(self, client: Client, config: ExportConfig, media_dict: dict, progress: ProgressPrint):
+    def __init__(self, client: Client, config: ExportConfig, media_dict: dict, progress: ExportProgressInternal):
         self.client = client
         self.config = config
         self.output = media_dict
@@ -52,13 +52,13 @@ class MediaExporter:
         self.downloaded_bytes += size
         self.output[out_id] = relpath(path, Path(download_dir).parent.absolute())
 
-    def _status(self, status: str=None) -> None:
-        with self.progress.update():
-            self.progress.media_status = status or self.progress.media_status
-            self.progress.media_queue = len(self.queue) + len(self._downloading)
-            self.progress.media_bytes = self.total_bytes
-            self.progress.media_down_bytes = self.downloaded_bytes
-            self.progress.media_fail_bytes = self.failed_bytes
+    def _status(self, status: str = None) -> None:
+        self.progress.media_status = status or self.progress.media_status
+        self.progress.media_queue = len(self.queue) + len(self._downloading)
+        self.progress.media_bytes = self.total_bytes
+        self.progress.media_down_bytes = self.downloaded_bytes
+        self.progress.media_fail_bytes = self.failed_bytes
+        self.progress.changed()
 
     async def _task(self) -> None:
         # use create_task and semaphore

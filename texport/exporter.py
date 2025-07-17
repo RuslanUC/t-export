@@ -1,7 +1,7 @@
 import asyncio
 from asyncio import sleep, Task
 from time import time
-from typing import TypeVar, Callable, ParamSpec
+from typing import TypeVar, Callable, ParamSpec, Awaitable
 
 from pyrogram import Client
 from pyrogram.errors import FloodWait
@@ -10,7 +10,8 @@ from pyrogram.raw.functions.messages import GetHistory
 from pyrogram.raw.types.messages import Messages, MessagesSlice
 from pyrogram.types import Message as PyroMessage
 
-from . import ExportConfig, MediaExporter, Preloader, MessagesSaver, ProgressPrint
+from . import ExportConfig, MediaExporter, Preloader, MessagesSaver, ExportProgress
+from .export_progress import ExportProgressInternal
 from .media import MEDIA_TYPES
 from .messages_saver import MessageToSave
 
@@ -26,18 +27,31 @@ async def _flood_wait(func: Callable[P, T], *args: P.args, **kwargs: P.kwargs) -
             await sleep(e.value + 1)
 
 
+ProgressCallback = Callable[[ExportProgress], Awaitable]
+
+
 class Exporter:
     def __init__(self, client: Client, export_config: ExportConfig=None):
         self._config = export_config or ExportConfig()
         self._client = client
         self._task = None
-        self.progress: ProgressPrint = ProgressPrint(disabled=not self._config.print)
+        self._progress_task = None
+        self._progress = ExportProgressInternal()
         self._media: dict[int | str, str] = {}
         self._saver = MessagesSaver(self._media, export_config)
-        self._media_downloader = MediaExporter(client, export_config, self._media, self.progress)
+        self._media_downloader = MediaExporter(client, export_config, self._media, self._progress)
         self._excluded_media = self._config.excluded_media()
         self._loop = asyncio.get_running_loop()
         self._write_tasks: set[Task] = set()
+
+        self._progress_callbacks: set[ProgressCallback] = set()
+
+    def add_progress_callback(self, func: ProgressCallback) -> ProgressCallback:
+        self._progress_callbacks.add(func)
+        return func
+
+    def remove_progress_callback(self, func: ProgressCallback) -> None:
+        self._progress_callbacks.add(func)
 
     async def _export_media(self, message: PyroMessage) -> None:
         if message.media not in MEDIA_TYPES or message.media in self._excluded_media:
@@ -57,9 +71,9 @@ class Exporter:
                 self._media_downloader.add(thumb.file_id, f"{chat_output_dir}/thumbs/", f"{message.id}_thumb", thumb.file_size)
 
     async def _write(self, messages: list[MessageToSave]) -> None:
-        #self.progress.status = "Waiting for all media to be downloaded..."
-        #await self._media_downloader.wait(wait_media)
-        self.progress.status = "Writing messages to file..."
+        self._progress.status = "Writing messages to file..."
+        self._progress.changed()
+
         task = self._loop.create_task(self._saver.save(messages))
         self._write_tasks.add(task)
         task.add_done_callback(self._write_tasks.remove)
@@ -87,6 +101,10 @@ class Exporter:
 
         return min_message_id, max_message_id
 
+    async def _progress_func(self) -> None:
+        while (new_progress := await self._progress.wait()) is not None:
+            for callback in self._progress_callbacks:
+                await callback(new_progress)
 
     async def _export(self):
         if self._config.use_takeout_api and not await self._client.storage.is_bot() and not self._client.takeout_id:
@@ -100,6 +118,9 @@ class Exporter:
             ))).id
 
         await self._media_downloader.run()
+
+        self._progress.start()
+        self._progress_task = self._loop.create_task(self._progress_func())
 
         loaded = 0
         messages: list[MessageToSave] = []
@@ -133,25 +154,27 @@ class Exporter:
                 count = min(resp.count, id_diff)
 
             counts[chat_id] = count
-            self.progress.approx_messages_count += count
+            self._progress.approx_messages_count += count
+            self._progress.changed()
 
-        messages_iter = Preloader(self._client, self.progress, self._config.chat_ids, self._export_media) \
+        messages_iter = Preloader(self._client, self._progress, self._config.chat_ids, self._export_media) \
             if self._config.preload else self._client.get_chat_history
 
         for chat_id, (min_id, max_id) in message_ranges.items():
             loaded_start = loaded
             async for message in messages_iter(chat_id, min_id=min_id, max_id=max_id):
                 loaded += 1
-                with self.progress.update():
-                    self.progress.status = "Exporting messages..."
-                    self.progress.messages_exported = loaded
+                self._progress.status = "Exporting messages..."
+                self._progress.messages_exported = loaded
+                self._progress.changed()
 
                 if not message.text and not message.caption and message.media not in MEDIA_TYPES:
                     continue
 
                 if message.media:
                     messages.append(MessageToSave(message, self._media_downloader))
-                    await self._export_media(message)
+                    if not self._config.preload:
+                        await self._export_media(message)
                 else:
                     messages.append(MessageToSave(message, None))
 
@@ -166,21 +189,32 @@ class Exporter:
             if chat_id in counts:
                 old_count = counts[chat_id]
                 real_count = loaded - loaded_start
-                with self.progress.update():
-                    self.progress.approx_messages_count -= old_count
-                    self.progress.approx_messages_count += real_count
+                self._progress.approx_messages_count -= old_count
+                self._progress.approx_messages_count += real_count
+                self._progress.changed()
 
                 counts[chat_id] = real_count
 
-        self.progress.status = "Waiting for all messages to be saved..."
+        self._progress.status = "Waiting for all messages to be saved..."
+        self._progress.changed()
+
         while self._write_tasks:
             await sleep(0)
 
         self._task = None
 
-        self.progress.status = "Stopping media downloader..."
+        self._progress.status = "Stopping media downloader..."
+        self._progress.changed()
+
         await self._media_downloader.stop()
-        self.progress.status = "Done!"
+
+        self._progress.status = "Done!"
+        self._progress.changed()
+
+        if self._progress_task is not None:
+            self._progress.stop()
+            await self._progress_task
+            self._progress_task = None
 
     async def export(self, block: bool=True) -> None:
         if self._task is not None:

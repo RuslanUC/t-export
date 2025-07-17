@@ -1,13 +1,17 @@
 from asyncio import sleep, get_event_loop
+from typing import Callable, Awaitable
 
 from pyrogram import Client
 from pyrogram.types import Message
 
-from .progress_print import ProgressPrint
+from .export_progress import ExportProgressInternal
 
 
 class Preloader:
-    def __init__(self, client: Client, progress: ProgressPrint, chat_ids: list, media_cb):
+    def __init__(
+            self, client: Client, progress: ExportProgressInternal, chat_ids: list,
+            media_cb: Callable[[Message], Awaitable[None]]
+    ):
         self.client = client
         self.progress = progress
         self.finished = {chat_id: False for chat_id in chat_ids}
@@ -39,9 +43,9 @@ class Preloader:
                 if message.media and self.media_cb:
                     await self.media_cb(message)
 
-                with self.progress.update():
-                    self.progress.status = "Preloading messages and media..."
-                    self.progress.messages_loaded = self.messages_loaded
+                self.progress.status = "Preloading messages and media..."
+                self.progress.messages_loaded = self.messages_loaded
+                self.progress.changed()
 
             self.finished[chat_id] = True
 
@@ -49,7 +53,7 @@ class Preloader:
         if self._task is None: self._task = get_event_loop().create_task(self._preload())
 
         while not self.finished[self._current_chat_id] and not self.messages[self._current_chat_id]:
-            await sleep(.01)
+            await sleep(0)
 
         if self.finished[self._current_chat_id] and not self.messages[self._current_chat_id]:
             raise StopAsyncIteration

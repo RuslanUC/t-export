@@ -9,11 +9,12 @@ from shutil import copy
 import click
 from pyrogram import Client
 
+from .progress_print import ProgressPrinter
 from .export_config import ExportConfig
 from .exporter import Exporter
 
 
-async def _main(session_name: str, api_id: int, api_hash: str, config: ExportConfig) -> None:
+async def _main(session_name: str, api_id: int, api_hash: str, config: ExportConfig, progress: bool) -> None:
     async with Client(
             f"{Path.home()}/.texport/{session_name}",
             api_id=api_id,
@@ -22,8 +23,12 @@ async def _main(session_name: str, api_id: int, api_hash: str, config: ExportCon
             #max_concurrent_transmissions=config.max_concurrent_downloads,
     ) as client:
         exporter = Exporter(client, config)
+        if progress:
+            exporter.add_progress_callback(ProgressPrinter.progress_callback)
+
         await exporter.export()
-        if config.print:
+
+        if progress:
             print("Export complete!")
 
 
@@ -84,7 +89,6 @@ def main(
         export_stickers=stickers,
         export_gifs=gifs,
         export_files=documents,
-        print=not quiet,
         preload=not no_preload,
         max_concurrent_downloads=max_concurrent_downloads,
         use_takeout_api=takeout,
@@ -110,7 +114,7 @@ def main(
         with open(texport_dir / "config.json", "w", encoding="utf8") as f:
             json.dump({"api_id": api_id, "api_hash": api_hash}, f)
 
-    get_event_loop().run_until_complete(_main(session_name, api_id, api_hash, config))
+    get_event_loop().run_until_complete(_main(session_name, api_id, api_hash, config, not quiet))
 
 
 if __name__ == "__main__":

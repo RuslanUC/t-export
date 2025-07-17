@@ -1,142 +1,18 @@
 import shutil
-from contextlib import contextmanager
-from contextvars import ContextVar
 
-import colorama
+try:
+    import colorama
+except ImportError:
+    ...
+else:
+    colorama.just_fix_windows_console()
 
-colorama.init()  # Fix windows
+from .export_progress import ExportProgress
 
 
-class ProgressPrint:
-    def __init__(self, disabled: bool=False):
-        self._status = "Initializing..."
-        self._approx_messages_count = 0
-        self._messages_exported = 0
-        self._messages_loaded = 0
-        self._media_status = "Idle..."
-        self._media_queue = 0
-
-        self._media_bytes = 0
-        self._media_down_bytes = 0
-        self._media_fail_bytes = 0
-
-        self._disabled = disabled
-
-        self.do_update = ContextVar('do_update')
-        self.do_update.set(True)
-
-    @property
-    def status(self) -> str:
-        return self._status
-
-    @status.setter
-    def status(self, value: str) -> None:
-        if self._status == value: return
-
-        self._status = value
-        if self.do_update.get():
-            self._update()
-
-    @property
-    def approx_messages_count(self) -> int:
-        return self._approx_messages_count
-
-    @approx_messages_count.setter
-    def approx_messages_count(self, value: int) -> None:
-        if self._approx_messages_count == value: return
-
-        self._approx_messages_count = value
-        if self.do_update.get():
-            self._update()
-
-    @property
-    def messages_exported(self) -> int:
-        return self._messages_exported
-
-    @messages_exported.setter
-    def messages_exported(self, value: int) -> None:
-        if self._messages_exported == value: return
-
-        self._messages_exported = value
-        if self.do_update.get():
-            self._update()
-
-    @property
-    def messages_loaded(self) -> int:
-        return self._messages_loaded
-
-    @messages_loaded.setter
-    def messages_loaded(self, value: int) -> None:
-        if self._messages_loaded == value: return
-
-        self._messages_loaded = value
-        if self.do_update.get():
-            self._update()
-
-    @property
-    def media_status(self) -> str:
-        return self._media_status
-
-    @media_status.setter
-    def media_status(self, value: str) -> None:
-        if self._media_status == value: return
-
-        self._media_status = value
-        if self.do_update.get():
-            self._update()
-
-    @property
-    def media_queue(self) -> int:
-        return self._media_queue
-
-    @media_queue.setter
-    def media_queue(self, value: int) -> None:
-        if self._media_queue == value: return
-
-        self._media_queue = value
-        if self.do_update.get():
-            self._update()
-
-    @property
-    def media_bytes(self) -> int:
-        return self._media_bytes
-
-    @media_bytes.setter
-    def media_bytes(self, value: int) -> None:
-        if self._media_bytes == value: return
-
-        self._media_bytes = value
-        if self.do_update.get():
-            self._update()
-
-    @property
-    def media_down_bytes(self) -> int:
-        return self._media_down_bytes
-
-    @media_down_bytes.setter
-    def media_down_bytes(self, value: int) -> None:
-        if self._media_down_bytes == value: return
-
-        self._media_down_bytes = value
-        if self.do_update.get():
-            self._update()
-
-    @property
-    def media_fail_bytes(self) -> int:
-        return self._media_fail_bytes
-
-    @media_fail_bytes.setter
-    def media_fail_bytes(self, value: int) -> None:
-        if self._media_fail_bytes == value: return
-
-        self._media_fail_bytes = value
-        if self.do_update.get():
-            self._update()
-
-    def _progress(self, value: int, cols: int, total: int | None = None) -> str:
-        if total is None:
-            total = self._approx_messages_count
-
+class ProgressPrinter:
+    @staticmethod
+    def _progress(value: int, cols: int, total: int) -> str:
         if total:
             cols_done = int((value / total) * (cols - 2))
             cols_remain = int(cols - 2 - cols_done)
@@ -145,28 +21,32 @@ class ProgressPrint:
             cols_remain = cols - 2
             return f"[{'-' * cols_remain}]"
 
-    def _update(self) -> None:
-        if self._disabled: return
+    @classmethod
+    async def progress_callback(cls, prog: ExportProgress) -> None:
+        approx_count = prog.approx_messages_count
+        loaded = prog.messages_loaded
+        exported = prog.messages_exported
+        fail_bytes = prog.media_fail_bytes
 
-        total_mb = self._media_bytes / 1024 / 1024
-        down_mb = self._media_down_bytes / 1024 / 1024
-        fail_mb = self._media_fail_bytes / 1024 / 1024
+        total_mb = prog.media_bytes / 1024 / 1024
+        down_mb = prog.media_down_bytes / 1024 / 1024
+        fail_mb = fail_bytes / 1024 / 1024
 
         cols, _ = shutil.get_terminal_size((80, 20))
-        exp_progress = self._progress(self._messages_exported, cols)
-        load_progress = self._progress(self._messages_loaded, cols) if self._messages_loaded else exp_progress
-        media_progress = self._progress(self._media_down_bytes + self._media_fail_bytes, cols, self._media_bytes)
+        exp_progress = cls._progress(exported, cols, approx_count)
+        load_progress = cls._progress(loaded, cols, approx_count) if loaded else exp_progress
+        media_progress = cls._progress(prog.media_down_bytes + fail_bytes, cols, prog.media_bytes)
         out = [
-            f"Current status: {self._status}",
-            f"Current media downloader status: {self._media_status}",
-            f"Media files in media downloader queue: {self._media_queue}",
-            f"Approximately messages count: {self._approx_messages_count or '?'}",
+            f"Current status: {prog.status}",
+            f"Current media downloader status: {prog.media_status}",
+            f"Media files in media downloader queue: {prog.media_queue}",
+            f"Approximate messages count: {approx_count or '?'}",
             f"Media loaded: {down_mb + fail_mb:.2f}MB/{total_mb:.2f}MB"
-            +(f"({fail_mb:.2f}MB failed)" if self._media_fail_bytes else ""),
+            + (f"({fail_mb:.2f}MB failed)" if fail_bytes else ""),
             media_progress,
-            f"Messages loaded: {self._messages_loaded if self._messages_loaded else self._messages_exported}",
+            f"Messages loaded: {loaded if loaded else exported}",
             load_progress,
-            f"Messages exported: {self._messages_exported}",
+            f"Messages exported: {exported}",
             exp_progress,
         ]
         for idx, line in enumerate(out):
@@ -178,22 +58,3 @@ class ProgressPrint:
         lines = len(out)
         out = "".join(out)
         print(f"\x1B[{lines}A{out}", end="", flush=True)
-
-    @contextmanager
-    def update(self):
-        self.do_update.set(False)
-        yield
-        self.do_update.set(True)
-        self._update()
-
-
-if __name__ == '__main__':
-    from time import sleep
-
-    p = ProgressPrint()
-    for i in range(100):
-        with p.update():
-            p.status = "Downloading messages..."
-            p.messages_exported = i
-            p.approx_messages_count = 99
-        sleep(.1)

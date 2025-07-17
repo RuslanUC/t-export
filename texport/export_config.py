@@ -29,8 +29,7 @@ class ExportConfig:
     size_limit: int = 32  # In megabytes
     from_date: datetime = datetime(1970, 1, 1)
     to_date: datetime = datetime.now()
-    print: bool = False
-    preload: bool = False
+    preload: bool = True
     max_concurrent_downloads: int = 4
     use_takeout_api: bool = False
     count_messages: bool = True
