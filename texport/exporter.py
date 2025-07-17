@@ -5,6 +5,7 @@ from typing import TypeVar, Callable, ParamSpec
 
 from pyrogram import Client
 from pyrogram.errors import FloodWait
+from pyrogram.raw.functions.account import InitTakeoutSession
 from pyrogram.raw.functions.messages import GetHistory
 from pyrogram.raw.types.messages import Messages, MessagesSlice
 from pyrogram.types import Message as PyroMessage
@@ -88,6 +89,16 @@ class Exporter:
 
 
     async def _export(self):
+        if self._config.use_takeout_api and not await self._client.storage.is_bot() and not self._client.takeout_id:
+            self._client.takeout_id = (await self._client.invoke(InitTakeoutSession(
+                message_users=True,
+                message_chats=True,
+                message_megagroups=True,
+                message_channels=True,
+                files=True,
+                file_max_size=1024 * 1024 * 1024 * 4,
+            ))).id
+
         await self._media_downloader.run()
 
         loaded = 0
