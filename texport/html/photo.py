@@ -1,14 +1,18 @@
+from pyrogram.enums import MessageMediaType
 from pyrogram.types import Message as PyroMessage
 
 from .base import HtmlMedia
 from .utils import file_size_str
+from .. import media
 
 
 class Photo(HtmlMedia):
     def __init__(self, media_path: str, media_thumb: str | None, message: PyroMessage):
         self.path = media_path
         self.thumb = media_thumb or media_path
-        self.photo = photo = message.photo
+
+        photo, _ = media.MEDIA_TYPES[MessageMediaType.PHOTO].get_media(message)
+        self.photo = photo
 
         self.size = file_size_str(photo.file_size if photo is not None else 0)
 

@@ -18,7 +18,7 @@ class Message(BaseMessage):
         super().__init__(message.id)
 
     def to_html(self) -> str:
-        forward = self.message.forward_from or self.message.forward_from_chat
+        forward = self.message.forward_origin is not None
 
         time = self.message.date.strftime("%H:%M")
         joined = " joined" if self.joined else ""

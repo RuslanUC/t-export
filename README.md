@@ -14,8 +14,9 @@ Options:
                                   ~/.texport/config.json file.
   --api-hash TEXT                 Telegram api hash. Saved in
                                   ~/.texport/config.json file.
-  -s, --session-name TEXT         Pyrogram session name or path to existing file. 
-                                  Saved in ~/.texport/<session_name>.session file.
+  -s, --session-name TEXT         Pyrogram session name or path to existing
+                                  file. Saved in
+                                  ~/.texport/<session_name>.session file.
   -c, --chat-id TEXT              Chat id or username or phone number. "me" or
                                   "self" to export saved messages.
   -o, --output TEXT               Output directory.
@@ -30,7 +31,16 @@ Options:
   --stickers / --no-stickers      Download stickers or not.
   --gifs / --no-gifs              Download gifs or not.
   --documents / --no-documents    Download documents or not.
-  --quiet BOOLEAN                 Do not print progress to console.
+  -q, --quiet                     Do not print progress to console.
+  --no-preload                    Do not preload all messages.
+  -d, --max-concurrent-downloads INTEGER
+                                  Number of concurrent media downloads.
+  --takeout                       Use takeout api.
+  --no-count                      Do not count messages that will be exported.
+  -w, --write-threshold INTEGER   Messages write threshold.
+  --all-media-wait                Write messages without waiting for ALL media
+                                  to download.
+  --help                          Show this message and exit.
 ```
 At first run you will need to specify api id and api hash and log in into your telegram account.
 Or you can pass path of existing pyrogram session to "--session" argument (no need to logging in or specifying api id or api hash).

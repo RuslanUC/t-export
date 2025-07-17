@@ -11,12 +11,12 @@ class Forward(BaseComponent):
         self.body = body
 
     def to_html(self) -> str:
-        message = self.message
-        name = (message.forward_from.first_name if message.forward_from else message.forward_from_chat.title)
-        date = self.message.forward_date.strftime(" %d.%m.%Y %H:%M:%S")
+        origin = self.message.forward_origin
+        date = origin.date.strftime(" %d.%m.%Y %H:%M:%S") if origin.date else "Unknown"
+        name = self.resolve_forward_origin_name(origin)
 
         return f"""
-        {Avatar(message, True).to_html()}
+        {Avatar(self.message, True).to_html()}
         <div class="forwarded body">
             <div class="from_name">{name} <span class="date details">{date}</span></div>
             {self.body.to_html()}

@@ -10,8 +10,10 @@ class Avatar(BaseComponent):
     def to_html(self) -> str:
         message = self.message
         forward = "" if not self.is_forward else " forwarded"
-        name = message.from_user.first_name if not self.is_forward else \
-            (message.forward_from.first_name if message.forward_from else message.forward_from_chat.title)
+        if self.is_forward:
+            name = self.resolve_forward_origin_name(message.forward_origin)
+        else:
+            name = message.from_user.first_name
 
         return f"""
         <div class="pull_left userpic_wrap{forward}">

@@ -1,10 +1,30 @@
 from abc import abstractmethod, ABC
-from pyrogram.types import Message as PyroMessage
+from pyrogram.types import Message as PyroMessage, MessageOrigin, MessageOriginUser, MessageOriginHiddenUser, \
+    MessageOriginChat, MessageOriginChannel, MessageImportInfo
 
 
 class BaseComponent(ABC):
     @abstractmethod
     def to_html(self) -> str: ...
+
+    @staticmethod
+    def resolve_forward_origin_name(origin: MessageOrigin) -> str:
+        if isinstance(origin, MessageOriginUser):
+            return origin.sender_user.first_name if origin.sender_user else "Unknown User"
+        elif isinstance(origin, MessageOriginHiddenUser):
+            return origin.sender_user_name or "Hidden User"
+        elif isinstance(origin, (MessageOriginChat, MessageOriginChannel)):
+            typ = "Chat" if isinstance(origin, MessageOriginChat) else "Channel"
+            chat = origin.sender_chat if isinstance(origin, MessageOriginChat) else origin.chat
+
+            name = chat.title if chat and chat.title else f"Unknown {typ}"
+            if origin.author_signature:
+                name = f"{origin.author_signature} in {name}"
+            return name
+        elif isinstance(origin, MessageImportInfo):
+            return origin.sender_user_name or "Imported User"
+
+        return "Unknown Origin"
 
 
 class BaseMessage(BaseComponent, ABC):

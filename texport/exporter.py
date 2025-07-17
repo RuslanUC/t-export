@@ -56,19 +56,21 @@ class Exporter:
     async def _export_media(self, message: PyroMessage) -> None:
         if message.media not in MEDIA_TYPES or message.media in self._excluded_media:
             return
+
         m = MEDIA_TYPES[message.media]
-        media = m.get_media(message)
+        media, thumb = m.get_media(message)
         if media is None or (m.has_size_limit and (
                 media.file_size is None or media.file_size > self._config.size_limit * 1024 * 1024)):
             return
 
-        if m.downloadable:
-            chat_output_dir = (self._config.output_dir / f"{message.chat.id}").absolute()
+        if not m.downloadable:
+            return
 
-            self._media_downloader.add(media.file_id, f"{chat_output_dir}/{m.dir_name}/", message.id, media.file_size)
-            if hasattr(media, "thumbs") and media.thumbs:
-                thumb = media.thumbs[0]
-                self._media_downloader.add(thumb.file_id, f"{chat_output_dir}/thumbs/", f"{message.id}_thumb", thumb.file_size)
+        chat_output_dir = (self._config.output_dir / f"{message.chat.id}").absolute()
+
+        self._media_downloader.add(media.file_id, f"{chat_output_dir}/{m.dir_name}/", message.id, media.file_size)
+        if thumb:
+            self._media_downloader.add(thumb.file_id, f"{chat_output_dir}/thumbs/", f"{message.id}_thumb", thumb.file_size)
 
     async def _write(self, messages: list[MessageToSave]) -> None:
         self._progress.status = "Writing messages to file..."
