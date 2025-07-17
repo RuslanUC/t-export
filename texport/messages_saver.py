@@ -5,7 +5,7 @@ from os.path import exists
 
 from pyrogram.types import Message as PyroMessage
 
-from . import MediaExporter
+from .download.downloader import DownloadTask
 from .export_config import ExportConfig
 from .html.base import EXPORT_FMT_BEFORE_MESSAGES, EXPORT_AFTER_MESSAGES, Export
 from .html.message import DateMessage, Message
@@ -13,17 +13,18 @@ from .resources import unpack_to
 
 
 class MessageToSave:
-    __slots__ = ("message", "media_ids", "downloader",)
+    __slots__ = ("message", "tasks",)
 
     def __init__(
-            self, message: PyroMessage, downloader: MediaExporter | None,
+            self, message: PyroMessage, tasks: list[DownloadTask],
     ) -> None:
         self.message = message
-        self.downloader = downloader
+        self.tasks = tasks
 
     async def wait(self) -> PyroMessage:
-        if self.downloader:
-            await self.downloader.wait([self.message.id, f"{self.message.id}_thumb"])
+        for task in self.tasks:
+            # TODO: set priority to 0
+            await task.done.wait()
         return self.message
 
 class MessagesSaver:

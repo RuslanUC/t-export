@@ -11,6 +11,7 @@ from pyrogram.raw.types.messages import Messages, MessagesSlice
 from pyrogram.types import Message as PyroMessage
 
 from . import ExportConfig, MediaExporter, Preloader, MessagesSaver, ExportProgress
+from .download.downloader import DownloadTask
 from .export_progress import ExportProgressInternal
 from .media import MEDIA_TYPES
 from .messages_saver import MessageToSave
@@ -53,24 +54,33 @@ class Exporter:
     def remove_progress_callback(self, func: ProgressCallback) -> None:
         self._progress_callbacks.add(func)
 
-    async def _export_media(self, message: PyroMessage) -> None:
+    async def _export_media(self, message: PyroMessage) -> list[DownloadTask]:
         if message.media not in MEDIA_TYPES or message.media in self._excluded_media:
-            return
+            return []
 
         m = MEDIA_TYPES[message.media]
         media, thumb = m.get_media(message)
         if media is None or (m.has_size_limit and (
                 media.file_size is None or media.file_size > self._config.size_limit * 1024 * 1024)):
-            return
+            return []
 
         if not m.downloadable:
-            return
+            return []
 
         chat_output_dir = (self._config.output_dir / f"{message.chat.id}").absolute()
 
-        self._media_downloader.add(media.file_id, f"{chat_output_dir}/{m.dir_name}/", message.id, media.file_size)
+        tasks = []
+
+        mime = getattr(media, "mime_type", None)
+        date = getattr(media, "date", None)
+        tasks.append(self._media_downloader.add(media.file_id, f"{chat_output_dir}/{m.dir_name}/", message.id, media.file_size, mime, date))
+
         if thumb:
-            self._media_downloader.add(thumb.file_id, f"{chat_output_dir}/thumbs/", f"{message.id}_thumb", thumb.file_size)
+            mime = getattr(thumb, "mime_type", None)
+            date = getattr(thumb, "date", None)
+            tasks.append(self._media_downloader.add(thumb.file_id, f"{chat_output_dir}/thumbs/", f"{message.id}_thumb", thumb.file_size, mime, date))
+
+        return tasks
 
     async def _write(self, messages: list[MessageToSave]) -> None:
         self._progress.status = "Writing messages to file..."
@@ -159,12 +169,22 @@ class Exporter:
             self._progress.approx_messages_count += count
             self._progress.changed()
 
-        messages_iter = Preloader(self._client, self._progress, self._config.chat_ids, self._export_media) \
-            if self._config.preload else self._client.get_chat_history
+        if self._config.preload:
+            messages_iter = Preloader(self._client, self._progress, self._config.chat_ids, self._export_media)
+        else:
+            messages_iter = self._client.get_chat_history
 
         for chat_id, (min_id, max_id) in message_ranges.items():
             loaded_start = loaded
+            message: MessageToSave | PyroMessage
             async for message in messages_iter(chat_id, min_id=min_id, max_id=max_id):
+                message_to_save: MessageToSave
+                if not self._config.preload:
+                    message_to_save = MessageToSave(message, [])
+                else:
+                    message_to_save = message
+                    message = message.message
+
                 loaded += 1
                 self._progress.status = "Exporting messages..."
                 self._progress.messages_exported = loaded
@@ -173,12 +193,10 @@ class Exporter:
                 if not message.text and not message.caption and message.media not in MEDIA_TYPES:
                     continue
 
-                if message.media:
-                    messages.append(MessageToSave(message, self._media_downloader))
-                    if not self._config.preload:
-                        await self._export_media(message)
-                else:
-                    messages.append(MessageToSave(message, None))
+                messages.append(message_to_save)
+
+                if message.media and not self._config.preload:
+                    message_to_save.tasks.extend(await self._export_media(message))
 
                 if len(messages) >= self._config.write_threshold:
                     await self._write(messages)

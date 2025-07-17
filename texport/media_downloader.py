@@ -1,23 +1,56 @@
-import asyncio
-from asyncio import sleep, Task, Semaphore, create_task
-from functools import partial
+from asyncio import sleep, get_running_loop
+from datetime import datetime, UTC
 from os.path import relpath
 from pathlib import Path
 
 from pyrogram import Client
-from pyrogram.errors import RPCError
+from pyrogram.file_id import PHOTO_TYPES, FileType, FileId
 
+from .download.downloader import Downloader, DownloadTask
 from .export_config import ExportConfig
 from .export_progress import ExportProgressInternal
 
 
+def get_file_name(
+        client: Client,
+        file_id: str,
+        mime_type: str | None,
+        date: int | None,
+) -> str:
+    file_id_obj = FileId.decode(file_id)
+
+    file_type = file_id_obj.file_type
+    date = date if isinstance(date, datetime) else datetime.now(UTC)
+
+    guessed_extension = client.guess_extension(mime_type or "")
+
+    if file_type in PHOTO_TYPES:
+        extension = ".jpg"
+    elif file_type == FileType.VOICE:
+        extension = guessed_extension or ".ogg"
+    elif file_type in (FileType.VIDEO, FileType.ANIMATION, FileType.VIDEO_NOTE):
+        extension = guessed_extension or ".mp4"
+    elif file_type == FileType.DOCUMENT:
+        extension = guessed_extension or ".zip"
+    elif file_type == FileType.STICKER:
+        extension = guessed_extension or ".webp"
+    elif file_type == FileType.AUDIO:
+        extension = guessed_extension or ".mp3"
+    else:
+        extension = ".unknown"
+
+    return (
+        f"{FileType(file_id_obj.file_type).name.lower()}_"
+        f"{date.strftime('%Y-%m-%d_%H-%M-%S')}_"
+        f"{client.rnd_id()}"
+        f"{extension}"
+    )
+
 class MediaExporter:
     def __init__(self, client: Client, config: ExportConfig, media_dict: dict, progress: ExportProgressInternal):
         self.client = client
-        self.config = config
         self.output = media_dict
         self.task = None
-        self.queue: list[tuple[str, str, str | int, int]] = []
         self.ids: set[str | int] = set()
         self.all_ids: set[str | int] = set()
         self.progress = progress
@@ -27,66 +60,62 @@ class MediaExporter:
 
         self._running = False
         self._downloading: dict[str | int, ...] = {}
-        self._sem = Semaphore(self.config.max_concurrent_downloads)
 
-    def add(self, file_id: str, download_dir: str, out_id: str | int, size: int) -> None:
-        if out_id in self.all_ids: return
-        self.total_bytes += size
-        self.queue.append((file_id, download_dir, out_id, size))
-        self.ids.add(out_id)
-        self.all_ids.add(out_id)
-        self._status()
+        self._loop = get_running_loop()
+        self._downloader = Downloader(client, config.max_concurrent_downloads)
 
-    def _download_done(self, _: Task[None], task_id: int | str) -> None:
+    async def _wait_for_dl_complete(self, task: DownloadTask, task_id: int | str) -> None:
+        await task.done.wait()
+
         self._downloading.pop(task_id, None)
         self.ids.discard(task_id)
 
-    async def _download(self, file_id: str, download_dir: str, out_id: str | int, size: int) -> None:
-        async with self._sem:
-            try:
-                path = await self.client.download_media(file_id, file_name=download_dir)
-            except RPCError:
-                self.failed_bytes += size
-                return
+        self.downloaded_bytes += task.size
+        self._status()
 
-        self.downloaded_bytes += size
-        self.output[out_id] = relpath(path, Path(download_dir).parent.absolute())
+    def add(self, file_id: str, download_dir: str, out_id: str | int, size: int, mime: str | None, date: int | None) -> DownloadTask | None:
+        if out_id in self.all_ids:
+            return self._downloading.get(out_id)
+
+        self.total_bytes += size
+
+        download_dir = Path(download_dir)
+        download_dir.mkdir(parents=True, exist_ok=True)
+        out_path = download_dir / get_file_name(self.client, file_id, mime, date)
+
+        task = self._downloader.add_task(file_id, 0, out_path, 5, size)
+        self.output[out_id] = relpath(out_path, download_dir.parent.absolute())
+
+        self._downloading[out_id] = task
+        self.ids.add(out_id)
+        self.all_ids.add(out_id)
+
+        self._loop.create_task(self._wait_for_dl_complete(task, out_id))
+
+        self._status()
+
+        return task
 
     def _status(self, status: str = None) -> None:
         self.progress.media_status = status or self.progress.media_status
-        self.progress.media_queue = len(self.queue) + len(self._downloading)
+        self.progress.media_queue = len(self._downloader._tasks)
         self.progress.media_bytes = self.total_bytes
         self.progress.media_down_bytes = self.downloaded_bytes
         self.progress.media_fail_bytes = self.failed_bytes
         self.progress.changed()
 
-    async def _task(self) -> None:
-        # use create_task and semaphore
-        downloading: dict[str | int, Task] = {}
-        while self._running:
-            if not self.queue and not downloading:
-                self._status("Idle...")
-                await sleep(.1)
-                continue
-            self._status("Downloading...")
-            *args, task_id = self.queue.pop(0)
-            task = create_task(self._download(*args, task_id))
-            self._downloading[task_id] = task
-            task.add_done_callback(partial(self._download_done, task_id=task_id))
-
-        self._status("Stopped...")
-
     async def run(self) -> None:
         self._running = True
-        self.task = asyncio.get_event_loop().create_task(self._task())
+        self._downloader.start()
 
     async def stop(self) -> None:
         await self.wait()
+        await self._downloader.stop()
         self._running = False
 
     async def wait(self, messages: list[int] | None = None) -> None:
         messages = set(messages) if messages is not None else None
-        while self._running and (self.queue or self._downloading):
+        while self._running and self._downloading:
             if messages is not None and not messages.intersection(self.ids):
                 break
             await sleep(.1)
