@@ -1,5 +1,5 @@
 import asyncio
-from asyncio import sleep
+from asyncio import sleep, Task
 from time import time
 from typing import TypeVar, Callable, ParamSpec
 
@@ -36,6 +36,7 @@ class Exporter:
         self._media_downloader = MediaExporter(client, export_config, self._media, self.progress)
         self._excluded_media = self._config.excluded_media()
         self._loop = asyncio.get_running_loop()
+        self._write_tasks: set[Task] = set()
 
     async def _export_media(self, message: PyroMessage) -> None:
         if message.media not in MEDIA_TYPES or message.media in self._excluded_media:
@@ -58,7 +59,9 @@ class Exporter:
         #self.progress.status = "Waiting for all media to be downloaded..."
         #await self._media_downloader.wait(wait_media)
         self.progress.status = "Writing messages to file..."
-        self._loop.create_task(self._saver.save(messages))
+        task = self._loop.create_task(self._saver.save(messages))
+        self._write_tasks.add(task)
+        task.add_done_callback(self._write_tasks.remove)
 
     async def _get_min_max_ids(self, chat_id: int | str) -> tuple[int, int]:
         from_date = int(self._config.from_date.timestamp())
@@ -157,6 +160,10 @@ class Exporter:
                     self.progress.approx_messages_count += real_count
 
                 counts[chat_id] = real_count
+
+        self.progress.status = "Waiting for all messages to be saved..."
+        while self._write_tasks:
+            await sleep(0)
 
         self._task = None
 

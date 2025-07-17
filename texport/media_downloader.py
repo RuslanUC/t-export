@@ -1,5 +1,6 @@
 import asyncio
 from asyncio import sleep, Task, Semaphore, create_task
+from functools import partial
 from os.path import relpath
 from pathlib import Path
 
@@ -36,6 +37,10 @@ class MediaExporter:
         self.all_ids.add(out_id)
         self._status()
 
+    def _download_done(self, _: Task[None], task_id: int | str) -> None:
+        self._downloading.pop(task_id, None)
+        self.ids.discard(task_id)
+
     async def _download(self, file_id: str, download_dir: str, out_id: str | int, size: int) -> None:
         async with self._sem:
             try:
@@ -43,11 +48,8 @@ class MediaExporter:
             except RPCError:
                 self.failed_bytes += size
                 return
-            finally:
-                self.downloaded_bytes += size
-                self._downloading.pop(out_id, None)
-                self.ids.discard(out_id)
 
+        self.downloaded_bytes += size
         self.output[out_id] = relpath(path, Path(download_dir).parent.absolute())
 
     def _status(self, status: str=None) -> None:
@@ -68,7 +70,9 @@ class MediaExporter:
                 continue
             self._status("Downloading...")
             *args, task_id = self.queue.pop(0)
-            self._downloading[task_id] = create_task(self._download(*args, task_id))
+            task = create_task(self._download(*args, task_id))
+            self._downloading[task_id] = task
+            task.add_done_callback(partial(self._download_done, task_id=task_id))
 
         self._status("Stopped...")
 
