@@ -18,7 +18,6 @@ class ExportProgress:
         self.media_queue = progress.media_queue if progress is not None else 0
         self.media_bytes = progress.media_bytes if progress is not None else 0
         self.media_down_bytes = progress.media_down_bytes if progress is not None else 0
-        self.media_fail_bytes = progress.media_fail_bytes if progress is not None else 0
 
 
 class ExportProgressInternal(ExportProgress):

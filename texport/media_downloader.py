@@ -96,7 +96,6 @@ class MediaExporter:
         self.progress.media_queue = len(self._downloader._tasks_hi) + len(self._downloader._tasks_lo)
         self.progress.media_bytes = self.total_bytes
         self.progress.media_down_bytes = self.downloaded_bytes
-        self.progress.media_fail_bytes = self.failed_bytes
         self.progress.changed()
 
     async def run(self) -> None:

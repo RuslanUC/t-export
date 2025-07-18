@@ -17,7 +17,7 @@ CHUNK_SIZE = 1024 * 1024
 class DownloadTask:
     __slots__ = (
         "file_id", "message_id", "output_path", "high_priority", "size", "offset", "lock", "file", "active_tasks",
-        "failed_chunks", "done", "task_id", "_downloader",
+        "failed_chunks", "done", "wrote_bytes", "task_id", "_downloader",
     )
 
     def __init__(
@@ -30,6 +30,7 @@ class DownloadTask:
         self.output_path = output_path
         self.high_priority = high_priority
         self.size = size
+        self.wrote_bytes = 0
         self.offset = 0
         self.lock = Lock()
         self.file: BinaryIO | None = None
@@ -51,7 +52,7 @@ class DownloadTask:
 class Downloader:
     def __init__(self, client: Client, max_concurrent_downloads: int) -> None:
         self._client = client
-        self._max_concurrent_tasks = max_concurrent_downloads * 2
+        self._max_concurrent_tasks = max_concurrent_downloads + 1
 
         self._running = False
         self._loop_task: Task | None = None
@@ -104,7 +105,6 @@ class Downloader:
         fp.truncate(size)
         return fp
 
-    # TODO: sometimes, for some reason, this function raises error because file is closed ???
     @staticmethod
     def _write_file(file: BinaryIO, offset: int, data: bytes) -> None:
         file.seek(offset)
@@ -131,6 +131,7 @@ class Downloader:
                 dc_was_initialized = True
             else:
                 chunk = await anext(self._client.get_file(*get_file_tup))
+                self._dc_init.add(file_id.dc_id)
 
         if dc_was_initialized:
             chunk = await anext(self._client.get_file(*get_file_tup))
@@ -140,6 +141,7 @@ class Downloader:
                 self._write_executor, self._write_file,
                 task.file, chunk_index * CHUNK_SIZE, chunk,
             )
+            task.wrote_bytes += len(chunk)
 
     async def _download_task_wrapper(self, task: DownloadTask, chunk_index: int | None = None) -> None:
         async with task.lock:
@@ -171,13 +173,14 @@ class Downloader:
             count_hi = len(self._tasks_hi)
             count_lo = len(self._tasks_lo)
 
-            if (not count_hi and not count_lo) or len(self._running_tasks) > self._max_concurrent_tasks:
+            if (not count_hi and not count_lo) or (len(self._running_tasks) >= self._max_concurrent_tasks):
                 try:
                     await asyncio.wait_for(self._tasks_changed.wait(), timeout=0.1)
                 except TimeoutError:
-                    continue
+                    ...
                 else:
                     self._tasks_changed.clear()
+                continue
 
             task = None
 
@@ -187,13 +190,14 @@ class Downloader:
             )
 
             for tasks, count, start_idx, is_high in to_check:
-                await sleep(0)
                 for idx in range(count):
+                    if (idx % 10) == 0:
+                        await sleep(0)
+
                     task_idx = (start_idx + idx) % count
                     task_check = tasks[task_idx]
-                    async with task_check.lock:
-                        if task_check.offset > task_check.size and not task_check.failed_chunks:
-                            continue
+                    if task_check.offset > task_check.size and not task_check.failed_chunks:
+                        continue
 
                     task = task_check
                     if is_high:
@@ -206,9 +210,9 @@ class Downloader:
             if task is not None:
                 async with task.lock:
                     chunk_index = task.failed_chunks.pop() if task.failed_chunks else None
-                    new_task = self._loop.create_task(self._download_task_wrapper(task, chunk_index))
-                    self._running_tasks.add(new_task)
-                    new_task.add_done_callback(self._running_tasks.remove)
+                new_task = self._loop.create_task(self._download_task_wrapper(task, chunk_index))
+                self._running_tasks.add(new_task)
+                new_task.add_done_callback(self._running_tasks.remove)
 
             await sleep(0)
 
@@ -217,9 +221,8 @@ class Downloader:
                 to_remove = []
 
                 for rem_idx, task in enumerate(tasks):
-                    async with task.lock:
-                        if task.offset < task.size or task.active_tasks > 0 or task.failed_chunks:
-                            continue
+                    if task.wrote_bytes < task.size or task.active_tasks > 0 or task.failed_chunks or not task.file:
+                        continue
 
                     to_remove.append(rem_idx)
 

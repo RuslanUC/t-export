@@ -22,6 +22,10 @@ class MessageToSave:
         self.media_task = media_task
         self.thumb_task = thumb_task
 
+    def need_to_wait(self) -> bool:
+        return (self.media_task is not None and not self.media_task.done.is_set()) \
+            or (self.thumb_task is not None and not self.thumb_task.done.is_set())
+
     async def wait(self) -> PyroMessage:
         if self.media_task is not None:
             self.media_task.set_priority_high(True)
@@ -66,9 +70,12 @@ class MessagesSaver:
         file_path = f"{out_dir}/messages{self.parts[chat.id]}.html"
         self.parts[chat.id] += 1
 
-        header = EXPORT_FMT_BEFORE_MESSAGES.format(title=chat.first_name)
+
         if self.config.partial_writes:
+            header = EXPORT_FMT_BEFORE_MESSAGES.format(title=chat.first_name)
+            header += EXPORT_AFTER_MESSAGES
             pos = await self._loop.run_in_executor(self._write_executor, self._write, file_path, header, 0)
+            pos -= self._sub_pos
         else:
             pos = 0
 
@@ -76,6 +83,12 @@ class MessagesSaver:
         dates = 0
         to_write = ""
         for task in messages:
+            if task.need_to_wait() and self.config.partial_writes and to_write:
+                to_write += EXPORT_AFTER_MESSAGES
+                pos = await self._loop.run_in_executor(self._write_executor, self._write, file_path, to_write, pos)
+                pos -= self._sub_pos
+                to_write = ""
+
             message = await task.wait()
 
             if prev is not None and prev.date.day != message.date.day:
@@ -91,13 +104,12 @@ class MessagesSaver:
 
             prev = message
 
-            if self.config.partial_writes:
-                pos = await self._loop.run_in_executor(self._write_executor, self._write, file_path, to_write, pos)
-                pos -= self._sub_pos
-                to_write = ""
-
         if not self.config.partial_writes:
-            await self._loop.run_in_executor(
-                self._write_executor, self._write, file_path, Export(chat.first_name, to_write).to_html(), 0,
-            )
+            to_write = Export(chat.first_name, to_write).to_html()
+        else:
+            to_write += EXPORT_AFTER_MESSAGES
 
+        if to_write:
+            await self._loop.run_in_executor(
+                self._write_executor, self._write, file_path, to_write, pos,
+            )

@@ -26,23 +26,20 @@ class ProgressPrinter:
         approx_count = prog.approx_messages_count
         loaded = prog.messages_loaded
         exported = prog.messages_exported
-        fail_bytes = prog.media_fail_bytes
 
         total_mb = prog.media_bytes / 1024 / 1024
         down_mb = prog.media_down_bytes / 1024 / 1024
-        fail_mb = fail_bytes / 1024 / 1024
 
         cols, _ = shutil.get_terminal_size((80, 20))
         exp_progress = cls._progress(exported, cols, approx_count)
         load_progress = cls._progress(loaded, cols, approx_count) if loaded else exp_progress
-        media_progress = cls._progress(prog.media_down_bytes + fail_bytes, cols, prog.media_bytes)
+        media_progress = cls._progress(prog.media_down_bytes, cols, prog.media_bytes)
         out = [
             f"Current status: {prog.status}",
             f"Current media downloader status: {prog.media_status}",
             f"Media files in media downloader queue: {prog.media_queue}",
             f"Approximate messages count: {approx_count or '?'}",
-            f"Media loaded: {down_mb + fail_mb:.2f}MB/{total_mb:.2f}MB"
-            + (f"({fail_mb:.2f}MB failed)" if fail_bytes else ""),
+            f"Media loaded: {down_mb:.2f}MB/{total_mb:.2f}MB",
             media_progress,
             f"Messages loaded: {loaded if loaded else exported}",
             load_progress,
