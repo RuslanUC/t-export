@@ -1,6 +1,5 @@
 from asyncio import sleep, get_running_loop
 from datetime import datetime, UTC
-from os.path import relpath
 from pathlib import Path
 
 from pyrogram import Client
@@ -47,9 +46,8 @@ def get_file_name(
     )
 
 class MediaExporter:
-    def __init__(self, client: Client, config: ExportConfig, media_dict: dict, progress: ExportProgressInternal):
+    def __init__(self, client: Client, config: ExportConfig, progress: ExportProgressInternal):
         self.client = client
-        self.output = media_dict
         self.task = None
         self.ids: set[str | int] = set()
         self.all_ids: set[str | int] = set()
@@ -68,7 +66,6 @@ class MediaExporter:
         await task.done.wait()
 
         self._downloading.pop(task_id, None)
-        self.ids.discard(task_id)
 
         self.downloaded_bytes += task.size
         self._status()
@@ -83,11 +80,9 @@ class MediaExporter:
         download_dir.mkdir(parents=True, exist_ok=True)
         out_path = download_dir / get_file_name(self.client, file_id, mime, date)
 
-        task = self._downloader.add_task(file_id, 0, out_path, 5, size)
-        self.output[out_id] = relpath(out_path, download_dir.parent.absolute())
+        task = self._downloader.add_task(file_id, 0, out_path, False, size)
 
         self._downloading[out_id] = task
-        self.ids.add(out_id)
         self.all_ids.add(out_id)
 
         self._loop.create_task(self._wait_for_dl_complete(task, out_id))
@@ -98,7 +93,7 @@ class MediaExporter:
 
     def _status(self, status: str = None) -> None:
         self.progress.media_status = status or self.progress.media_status
-        self.progress.media_queue = len(self._downloader._tasks)
+        self.progress.media_queue = len(self._downloader._tasks_hi) + len(self._downloader._tasks_lo)
         self.progress.media_bytes = self.total_bytes
         self.progress.media_down_bytes = self.downloaded_bytes
         self.progress.media_fail_bytes = self.failed_bytes
@@ -109,13 +104,8 @@ class MediaExporter:
         self._downloader.start()
 
     async def stop(self) -> None:
-        await self.wait()
+        while self._downloading:
+            await sleep(0)
+
         await self._downloader.stop()
         self._running = False
-
-    async def wait(self, messages: list[int] | None = None) -> None:
-        messages = set(messages) if messages is not None else None
-        while self._running and self._downloading:
-            if messages is not None and not messages.intersection(self.ids):
-                break
-            await sleep(.1)

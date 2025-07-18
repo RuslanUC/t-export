@@ -1,7 +1,7 @@
 from asyncio import get_running_loop
 from collections import defaultdict
 from concurrent.futures.thread import ThreadPoolExecutor
-from os.path import exists
+from os.path import exists, relpath
 
 from pyrogram.types import Message as PyroMessage
 
@@ -13,26 +13,33 @@ from .resources import unpack_to
 
 
 class MessageToSave:
-    __slots__ = ("message", "tasks",)
+    __slots__ = ("message", "media_task", "thumb_task",)
 
     def __init__(
-            self, message: PyroMessage, tasks: list[DownloadTask],
+            self, message: PyroMessage, media_task: DownloadTask | None, thumb_task: DownloadTask | None,
     ) -> None:
         self.message = message
-        self.tasks = tasks
+        self.media_task = media_task
+        self.thumb_task = thumb_task
 
     async def wait(self) -> PyroMessage:
-        for task in self.tasks:
-            # TODO: set priority to 0
-            await task.done.wait()
+        if self.media_task is not None:
+            self.media_task.set_priority_high(True)
+        if self.thumb_task is not None:
+            self.thumb_task.set_priority_high(True)
+
+        if self.media_task is not None:
+            await self.media_task.done.wait()
+        if self.thumb_task is not None:
+            await self.thumb_task.done.wait()
+
         return self.message
 
 class MessagesSaver:
     _sub_pos = len(EXPORT_AFTER_MESSAGES)
 
-    def __init__(self, media: dict[int | str, str], config: ExportConfig):
+    def __init__(self, config: ExportConfig):
         self.parts = defaultdict(lambda: 0)
-        self.media = media
         self.config = config
 
         self._loop = get_running_loop()
@@ -51,7 +58,7 @@ class MessagesSaver:
 
         chat = messages[0].message.chat
 
-        out_dir = self.config.output_dir / str(chat.id)
+        out_dir = (self.config.output_dir / str(chat.id)).absolute()
 
         if not exists(out_dir / "js") or not exists(out_dir / "images") or not exists(out_dir / "css"):
             unpack_to(out_dir)
@@ -68,18 +75,18 @@ class MessagesSaver:
         prev: PyroMessage | None = None
         dates = 0
         to_write = ""
-        for message in messages:
-            message = await message.wait()
+        for task in messages:
+            message = await task.wait()
 
             if prev is not None and prev.date.day != message.date.day:
                 dates -= 1
                 to_write += DateMessage(message.date, dates).to_html()
 
-            media = self.media.pop(message.id, None)
-            media_thumb = self.media.pop(f"{message.id}_thumb", None)
+            media_path = relpath(task.media_task.output_path, out_dir) if task.media_task else None
+            thumb_path = relpath(task.thumb_task.output_path, out_dir) if task.thumb_task else None
 
             to_write += Message(
-                message, media, media_thumb, prev is not None and prev.from_user.id == message.from_user.id
+                message, media_path, thumb_path, prev is not None and prev.from_user.id == message.from_user.id
             ).to_html()
 
             prev = message

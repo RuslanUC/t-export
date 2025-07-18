@@ -38,9 +38,8 @@ class Exporter:
         self._task = None
         self._progress_task = None
         self._progress = ExportProgressInternal()
-        self._media: dict[int | str, str] = {}
-        self._saver = MessagesSaver(self._media, export_config)
-        self._media_downloader = MediaExporter(client, export_config, self._media, self._progress)
+        self._saver = MessagesSaver(export_config)
+        self._media_downloader = MediaExporter(client, export_config, self._progress)
         self._excluded_media = self._config.excluded_media()
         self._loop = asyncio.get_running_loop()
         self._write_tasks: set[Task] = set()
@@ -54,33 +53,32 @@ class Exporter:
     def remove_progress_callback(self, func: ProgressCallback) -> None:
         self._progress_callbacks.add(func)
 
-    async def _export_media(self, message: PyroMessage) -> list[DownloadTask]:
+    async def _export_media(self, message: PyroMessage) -> tuple[DownloadTask | None, DownloadTask | None]:
         if message.media not in MEDIA_TYPES or message.media in self._excluded_media:
-            return []
+            return None, None
 
         m = MEDIA_TYPES[message.media]
         media, thumb = m.get_media(message)
         if media is None or (m.has_size_limit and (
                 media.file_size is None or media.file_size > self._config.size_limit * 1024 * 1024)):
-            return []
+            return None, None
 
         if not m.downloadable:
-            return []
+            return None, None
 
         chat_output_dir = (self._config.output_dir / f"{message.chat.id}").absolute()
 
-        tasks = []
-
         mime = getattr(media, "mime_type", None)
         date = getattr(media, "date", None)
-        tasks.append(self._media_downloader.add(media.file_id, f"{chat_output_dir}/{m.dir_name}/", message.id, media.file_size, mime, date))
+        media_task = self._media_downloader.add(media.file_id, f"{chat_output_dir}/{m.dir_name}/", message.id, media.file_size, mime, date)
+        thumb_task = None
 
         if thumb:
             mime = getattr(thumb, "mime_type", None)
             date = getattr(thumb, "date", None)
-            tasks.append(self._media_downloader.add(thumb.file_id, f"{chat_output_dir}/thumbs/", f"{message.id}_thumb", thumb.file_size, mime, date))
+            thumb_task = self._media_downloader.add(thumb.file_id, f"{chat_output_dir}/thumbs/", f"{message.id}_thumb", thumb.file_size, mime, date)
 
-        return tasks
+        return media_task, thumb_task
 
     async def _write(self, messages: list[MessageToSave]) -> None:
         self._progress.status = "Writing messages to file..."
@@ -180,7 +178,7 @@ class Exporter:
             async for message in messages_iter(chat_id, min_id=min_id, max_id=max_id):
                 message_to_save: MessageToSave
                 if not self._config.preload:
-                    message_to_save = MessageToSave(message, [])
+                    message_to_save = MessageToSave(message, None, None)
                 else:
                     message_to_save = message
                     message = message.message
@@ -196,7 +194,7 @@ class Exporter:
                 messages.append(message_to_save)
 
                 if message.media and not self._config.preload:
-                    message_to_save.tasks.extend(await self._export_media(message))
+                    message_to_save.media_task, message_to_save.thumb_task = await self._export_media(message)
 
                 if len(messages) >= self._config.write_threshold:
                     await self._write(messages)

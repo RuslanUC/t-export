@@ -12,7 +12,7 @@ from .messages_saver import MessageToSave
 class Preloader:
     def __init__(
             self, client: Client, progress: ExportProgressInternal, chat_ids: list,
-            media_cb: Callable[[Message], Awaitable[list[DownloadTask]]]
+            media_cb: Callable[[Message], Awaitable[tuple[DownloadTask | None, DownloadTask | None]]]
     ):
         self.client = client
         self.progress = progress
@@ -39,11 +39,11 @@ class Preloader:
     async def _preload(self) -> None:
         for chat_id in self._chat_ids:
             async for message in self.client.get_chat_history(chat_id, *self._pyro_args, **self._pyro_kwargs):
-                tasks = []
+                tasks: tuple[DownloadTask | None, DownloadTask | None] = None, None
                 if message.media:
                     tasks = await self.media_cb(message)
 
-                self.messages[chat_id].append(MessageToSave(message, tasks))
+                self.messages[chat_id].append(MessageToSave(message, *tasks))
                 self.messages_loaded += 1
 
                 self.progress.status = "Preloading messages and media..."
