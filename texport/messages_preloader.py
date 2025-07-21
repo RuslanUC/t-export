@@ -11,7 +11,7 @@ from .messages_saver import MessageToSave
 
 class Preloader:
     def __init__(
-            self, client: Client, progress: ExportProgressInternal, chat_ids: list,
+            self, client: Client, progress: ExportProgressInternal, chat_ids: list[int | str],
             media_cb: Callable[[Message], Awaitable[tuple[DownloadTask | None, DownloadTask | None]]]
     ):
         self.client = client

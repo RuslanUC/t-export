@@ -10,12 +10,7 @@ from .export_config import ExportConfig
 from .export_progress import ExportProgressInternal
 
 
-def get_file_name(
-        client: Client,
-        file_id: str,
-        mime_type: str | None,
-        date: int | None,
-) -> str:
+def get_file_name(client: Client, file_id: str, mime_type: str | None, date: int | None) -> str:
     file_id_obj = FileId.decode(file_id)
 
     file_type = file_id_obj.file_type
@@ -70,7 +65,9 @@ class MediaExporter:
         self.downloaded_bytes += task.size
         self._status()
 
-    def add(self, file_id: str, download_dir: str, out_id: str | int, size: int, mime: str | None, date: int | None) -> DownloadTask | None:
+    def add(self, file_id: str, download_dir: str, message_id: str | int, is_thumb: bool, size: int, mime: str | None, date: int | None) -> DownloadTask | None:
+        out_id = f"{message_id}_thumb" if is_thumb else message_id
+
         if out_id in self.all_ids:
             return self._downloading.get(out_id)
 
@@ -80,7 +77,7 @@ class MediaExporter:
         download_dir.mkdir(parents=True, exist_ok=True)
         out_path = download_dir / get_file_name(self.client, file_id, mime, date)
 
-        task = self._downloader.add_task(file_id, 0, out_path, False, size)
+        task = self._downloader.add_task(file_id, message_id, out_path, False, size, is_thumb)
 
         self._downloading[out_id] = task
         self.all_ids.add(out_id)

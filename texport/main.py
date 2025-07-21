@@ -20,7 +20,6 @@ async def _main(session_name: str, api_id: int, api_hash: str, config: ExportCon
             api_id=api_id,
             api_hash=api_hash,
             no_updates=True,
-            #max_concurrent_transmissions=config.max_concurrent_downloads,
     ) as client:
         exporter = Exporter(client, config)
         if progress:

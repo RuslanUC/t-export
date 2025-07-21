@@ -53,6 +53,11 @@ class Exporter:
     def remove_progress_callback(self, func: ProgressCallback) -> None:
         self._progress_callbacks.add(func)
 
+    def _add_downloader_task(self, message_id: int, media: ..., out_dir: str, is_thumb: bool) -> DownloadTask:
+        mime = getattr(media, "mime_type", None)
+        date = getattr(media, "date", None)
+        return self._media_downloader.add(media.file_id, out_dir, message_id, is_thumb, media.file_size, mime, date)
+
     async def _export_media(self, message: PyroMessage) -> tuple[DownloadTask | None, DownloadTask | None]:
         if message.media not in MEDIA_TYPES or message.media in self._excluded_media:
             return None, None
@@ -68,15 +73,11 @@ class Exporter:
 
         chat_output_dir = (self._config.output_dir / f"{message.chat.id}").absolute()
 
-        mime = getattr(media, "mime_type", None)
-        date = getattr(media, "date", None)
-        media_task = self._media_downloader.add(media.file_id, f"{chat_output_dir}/{m.dir_name}/", message.id, media.file_size, mime, date)
+        media_task = self._add_downloader_task(message.id, media, f"{chat_output_dir}/{m.dir_name}/", False)
         thumb_task = None
 
         if thumb:
-            mime = getattr(thumb, "mime_type", None)
-            date = getattr(thumb, "date", None)
-            thumb_task = self._media_downloader.add(thumb.file_id, f"{chat_output_dir}/thumbs/", f"{message.id}_thumb", thumb.file_size, mime, date)
+            thumb_task = self._add_downloader_task(message.id, thumb, f"{chat_output_dir}/{m.dir_name}/", False)
 
         return media_task, thumb_task
 
