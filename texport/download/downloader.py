@@ -98,6 +98,7 @@ class Downloader:
 
         task.high_priority = to_high
         bisect.insort_left(new_queue, task)
+        self._tasks_changed.set()
 
     @staticmethod
     def _open_file(path: Path, size: int) -> BinaryIO:
@@ -205,6 +206,9 @@ class Downloader:
                     else:
                         idx_lo = task_idx
 
+                    break
+
+                if task is not None:
                     break
 
             if task is not None:
