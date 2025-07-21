@@ -61,3 +61,6 @@ $ t-export -c example -o example_export --no-videos --size-limit 100
 ```shell
 $ t-export -c example -o example_export --size-limit 100 --from-date 01.01.2023
 ```
+
+### TODO
+ - [ ] Export to json
