@@ -45,9 +45,9 @@ async def _main(session_name: str, api_id: int, api_hash: str, config: ExportCon
 @click.option("--size-limit", "-l", type=click.INT, default=32,
               help="Media size limit in megabytes.")
 @click.option("--from-date", "-f", type=click.STRING, default="01.01.1970",
-              help="Date from which messages will be saved.")
+              help="Date from which messages will be saved (in dd.mm.yyyy format).")
 @click.option("--to-date", "-t", type=click.STRING, default=datetime.now().strftime("%d.%m.%Y"),
-              help="Date to which messages will be saved.")
+              help="Date to which messages will be saved (in dd.mm.yyyy format).")
 @click.option("--photos/--no-photos", default=True, help="Download photos or not.")
 @click.option("--videos/--no-videos", default=True, help="Download videos or not.")
 @click.option("--voice/--no-voice", default=True, help="Download voice messages or not.")
