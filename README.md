@@ -38,7 +38,7 @@ Options:
   --takeout                       Use takeout api.
   --no-count                      Do not count messages that will be exported.
   -w, --write-threshold INTEGER   Messages write threshold.
-  --all-media-wait                Write messages without waiting for ALL media
+  --all-media-wait                Write messages after waiting for ALL media
                                   to download.
   --help                          Show this message and exit.
 ```

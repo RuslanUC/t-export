@@ -63,7 +63,7 @@ async def _main(session_name: str, api_id: int, api_hash: str, config: ExportCon
 @click.option("--no-count", is_flag=True, default=False, help="Do not count messages that will be exported.")
 @click.option("--write-threshold", "-w", type=click.INT, default=1000, help="Messages write threshold.")
 @click.option("--all-media-wait", is_flag=True, default=False,
-              help="Write messages without waiting for ALL media to download.")
+              help="Write messages after waiting for ALL media to download.")
 def main(
         session_name: str, api_id: int, api_hash: str, chat_id: list[str], output: str, size_limit: int, from_date: str,
         to_date: str, photos: bool, videos: bool, voice: bool, video_notes: bool, stickers: bool, gifs: bool,
