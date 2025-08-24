@@ -3,7 +3,8 @@ from collections import defaultdict
 from concurrent.futures.thread import ThreadPoolExecutor
 from os.path import exists, relpath
 
-from pyrogram.types import Message as PyroMessage
+from pyrogram.enums import ChatType
+from pyrogram.types import Message as PyroMessage, Chat
 
 from .download.downloader import DownloadTask
 from .export_config import ExportConfig
@@ -39,6 +40,18 @@ class MessageToSave:
 
         return self.message
 
+
+def _get_chat_name(chat: Chat) -> str:
+    if chat.type in (ChatType.PRIVATE, ChatType.BOT):
+        if chat.last_name:
+            return f"{chat.first_name} {chat.last_name}"
+        return chat.first_name
+    elif chat.type in (ChatType.GROUP, ChatType.SUPERGROUP, ChatType.CHANNEL):
+        return chat.title
+
+    return "Unknown"
+
+
 class MessagesSaver:
     _sub_pos = len(EXPORT_AFTER_MESSAGES)
 
@@ -72,7 +85,7 @@ class MessagesSaver:
 
 
         if self.config.partial_writes:
-            header = EXPORT_FMT_BEFORE_MESSAGES.format(title=chat.first_name)
+            header = EXPORT_FMT_BEFORE_MESSAGES.format(title=_get_chat_name(chat))
             header += EXPORT_AFTER_MESSAGES
             pos = await self._loop.run_in_executor(self._write_executor, self._write, file_path, header, 0)
             pos -= self._sub_pos
@@ -105,7 +118,7 @@ class MessagesSaver:
             prev = message
 
         if not self.config.partial_writes:
-            to_write = Export(chat.first_name, to_write).to_html()
+            to_write = Export(_get_chat_name(chat), to_write).to_html()
         else:
             to_write += EXPORT_AFTER_MESSAGES
 
