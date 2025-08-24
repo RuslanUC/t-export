@@ -53,7 +53,10 @@ class Exporter:
     def remove_progress_callback(self, func: ProgressCallback) -> None:
         self._progress_callbacks.add(func)
 
-    def _add_downloader_task(self, message_id: int, media: ..., out_dir: str, is_thumb: bool) -> DownloadTask:
+    def _add_downloader_task(self, message_id: int, media: ..., out_dir: str, is_thumb: bool) -> DownloadTask | None:
+        if media is None:
+            return None
+
         mime = getattr(media, "mime_type", None)
         date = getattr(media, "date", None)
         return self._media_downloader.add(media.file_id, out_dir, message_id, is_thumb, media.file_size, mime, date)
@@ -75,10 +78,7 @@ class Exporter:
         chat_output_dir = (self._config.output_dir / f"{message.chat.id}").absolute()
 
         media_task = self._add_downloader_task(message.id, media, f"{chat_output_dir}/{m.dir_name}/", False)
-        thumb_task = None
-
-        if thumb:
-            thumb_task = self._add_downloader_task(message.id, thumb, f"{chat_output_dir}/{m.dir_name}/", False)
+        thumb_task = self._add_downloader_task(message.id, thumb, f"{chat_output_dir}/thumbs/", True)
 
         return media_task, thumb_task
 

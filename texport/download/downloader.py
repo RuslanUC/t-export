@@ -388,8 +388,8 @@ class Downloader:
             task = None
 
             to_check = (
-                (self._tasks_hi, count_hi, idx_hi, True),
-                (self._tasks_lo, count_lo, idx_lo, False),
+                (self._tasks_hi, len(self._tasks_hi), idx_hi, True),
+                (self._tasks_lo, len(self._tasks_lo), idx_lo, False),
             )
 
             for tasks, count, start_idx, is_high in to_check:

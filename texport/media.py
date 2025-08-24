@@ -40,8 +40,6 @@ class Media:
         return sorted(thumbs or [], key=lambda th: th.width)
 
     def get_media(self, message: PyroMessage) -> tuple[PyroObject | None, Thumbnail | None]:
-        # TODO: something is wrong with thumbs, probably in this method (not all messages have them for some reason)
-
         media = getattr(message, self.attr_name)
         thumb = None
 
