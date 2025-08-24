@@ -4,7 +4,7 @@ from time import time
 from typing import TypeVar, Callable, ParamSpec, Awaitable
 
 from pyrogram import Client
-from pyrogram.errors import FloodWait
+from pyrogram.errors import FloodWait, PeerIdInvalid
 from pyrogram.raw.functions.account import InitTakeoutSession
 from pyrogram.raw.functions.messages import GetHistory
 from pyrogram.raw.types.messages import Messages, MessagesSlice
@@ -93,8 +93,8 @@ class Exporter:
         from_date = int(self._config.from_date.timestamp())
         to_date = int(self._config.to_date.timestamp())
 
-        date_offset_min = (from_date - 1) if from_date > 0 else 0
-        date_offset_max = (to_date + 86400) if to_date < time() else 0
+        date_offset_min = (from_date - 1) if from_date > 0 else 1
+        date_offset_max = (to_date + 86400) if to_date < time() else int(time())
 
         peer = await self._client.resolve_peer(chat_id)
         min_messages: Messages | MessagesSlice = await self._client.invoke(GetHistory(
@@ -117,6 +117,25 @@ class Exporter:
             for callback in self._progress_callbacks:
                 await callback(new_progress)
 
+    async def _try_fix_peer_id(
+            self, peer_id: str | int,
+    ) -> str | int:
+        try:
+            await self._client.resolve_peer(peer_id)
+            return peer_id
+        except PeerIdInvalid:
+            pass
+
+        if not isinstance(peer_id, int):
+            try:
+                peer_id = int(peer_id)
+                await self._client.resolve_peer(peer_id)
+                return peer_id
+            except ValueError:
+                pass
+
+        raise PeerIdInvalid
+
     async def _export(self):
         if self._config.use_takeout_api and not await self._client.storage.is_bot() and not self._client.takeout_id:
             self._client.takeout_id = (await self._client.invoke(InitTakeoutSession(
@@ -135,10 +154,14 @@ class Exporter:
 
         loaded = 0
         messages: list[MessageToSave] = []
+        chat_ids = []
 
         message_ranges: dict[int | str, tuple[int, int]] = {}
         counts: dict[int | str, int] = {}
         for chat_id in self._config.chat_ids:
+            chat_id = await self._try_fix_peer_id(chat_id)
+            chat_ids.append(chat_id)
+
             message_ranges[chat_id] = await self._get_min_max_ids(chat_id)
             min_id, max_id = message_ranges[chat_id]
             id_diff = (max_id - min_id) if min_id > 0 and max_id > 0 else (2 ** 31 - 1)
@@ -169,7 +192,7 @@ class Exporter:
             self._progress.changed()
 
         if self._config.preload:
-            messages_iter = Preloader(self._client, self._progress, self._config.chat_ids, self._export_media)
+            messages_iter = Preloader(self._client, self._progress, chat_ids, self._export_media)
         else:
             messages_iter = self._client.get_chat_history
 
