@@ -4,7 +4,7 @@ from .base import HtmlMedia
 
 
 class Contact(HtmlMedia):
-    def __init__(self, *args, message: PyroMessage):
+    def __init__(self, _media: str, _thumb: str | None, message: PyroMessage):
         self.contact = message.contact
 
     def no_media(self) -> str:

@@ -9,9 +9,9 @@ from shutil import copy
 import click
 from pyrogram import Client
 
-from .progress_print import ProgressPrinter
 from .export_config import ExportConfig
 from .exporter import Exporter
+from .progress_print import ProgressPrinter
 
 
 async def _main(session_name: str, api_id: int, api_hash: str, config: ExportConfig, progress: bool) -> None:

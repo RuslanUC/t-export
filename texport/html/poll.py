@@ -27,7 +27,7 @@ class PollOption(BaseComponent):
 
 
 class Poll(HtmlMedia):
-    def __init__(self, *args, message: PyroMessage):
+    def __init__(self, _media: str, _thumb: str | None, message: PyroMessage):
         self.poll = message.poll
 
     def no_media(self) -> str:

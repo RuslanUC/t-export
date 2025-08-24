@@ -17,7 +17,7 @@ class Preloader:
         self.client = client
         self.progress = progress
         self.finished = {chat_id: False for chat_id in chat_ids}
-        self.messages: dict[..., list[MessageToSave]] = {chat_id: [] for chat_id in chat_ids}
+        self.messages: dict[int | str, list[MessageToSave]] = {chat_id: [] for chat_id in chat_ids}
         self.messages_loaded = 0
         self.media_cb = media_cb
         self._chat_ids = chat_ids

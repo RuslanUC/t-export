@@ -53,3 +53,11 @@ class DateMessage(BaseMessage):
             </div>
         </div>
         """
+
+
+# TODO: MessageServiceType.PINNED_MESSAGE messages have following html:
+#  <div class="message service" id="message{this id}">
+#      <div class="body details">
+#  ឵឵        {author name} pinned <a href="#go_to_message{pinned id}" onclick="return GoToMessage({pinned id})">this message</a>
+#      </div>
+#  </div>

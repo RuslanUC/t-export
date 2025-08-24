@@ -19,3 +19,13 @@ class Media(BaseComponent):
             {media_element(self.media_path, self.media_thumb, message=self.message).to_html()}
         </div>
         """
+
+
+# TODO: phone call messages have following media html:
+#  <div class="media clearfix pull_left media_call success">
+#      <div class="fill pull_left"></div>
+#      <div class="body">
+#          <div class="title bold">{author}</div>
+#          <div class="status details">{Incoming/Outgoing} ({seconds} seconds)</div>
+#      </div>
+#  </div>

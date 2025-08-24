@@ -13,7 +13,7 @@ from pyrogram.types import Message as PyroMessage
 from . import ExportConfig, MediaExporter, Preloader, MessagesSaver, ExportProgress
 from .download.downloader import DownloadTask
 from .export_progress import ExportProgressInternal
-from .media import MEDIA_TYPES
+from .media import MEDIA_TYPES, ExpiredMedia
 from .messages_saver import MessageToSave
 
 T = TypeVar("T")
@@ -64,8 +64,9 @@ class Exporter:
 
         m = MEDIA_TYPES[message.media]
         media, thumb = m.get_media(message)
-        if media is None or (m.has_size_limit and (
-                media.file_size is None or media.file_size > self._config.size_limit * 1024 * 1024)):
+        if media is None \
+                or isinstance(media, ExpiredMedia) \
+                or (m.has_size_limit and ((media.file_size or 0) > self._config.size_limit * 1024 * 1024)):
             return None, None
 
         if not m.downloadable:

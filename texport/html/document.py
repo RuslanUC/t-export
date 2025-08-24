@@ -5,7 +5,7 @@ from .utils import file_size_str
 
 
 class Document(HtmlMedia):
-    def __init__(self, media_path: str, *args, message: PyroMessage):
+    def __init__(self, media_path: str, _thumb: str | None, message: PyroMessage):
         self.path = media_path
         self.name = message.document.file_name
         self.doc = message.document

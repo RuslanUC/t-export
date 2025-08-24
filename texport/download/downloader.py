@@ -2,12 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import bisect
-import random
 from asyncio import Task, sleep, Lock, get_running_loop, Event, Semaphore
 from collections import defaultdict
 from concurrent.futures.thread import ThreadPoolExecutor
 from hashlib import sha256
-from os import urandom
 from pathlib import Path
 from time import time
 from typing import BinaryIO
@@ -136,6 +134,7 @@ class Downloader:
         if not to_renew_ids:
             return
 
+        # TODO: pass channel/supergroup id
         for message in await self._client.get_messages(message_ids=list(to_renew_ids.keys()), replies=0):
             if message.id not in to_renew_ids:
                 continue

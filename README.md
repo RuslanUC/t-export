@@ -66,3 +66,6 @@ $ t-export -c example -o example_export --size-limit 100 --from-date 01.01.2023
  - [ ] Export to json
  - [ ] Support channels/groups/supergroups
  - [ ] Support service messages exporting (if they can be exported via official Telegram apps)
+ - [ ] Support reactions
+ - [ ] Support expired media (for now only photos are supported)
+ - [ ] Support voice call messages
