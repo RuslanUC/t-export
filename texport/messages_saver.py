@@ -93,6 +93,7 @@ class MessagesSaver:
             pos = 0
 
         prev: PyroMessage | None = None
+        prev_author_id: int = 0
         dates = 0
         to_write = ""
         for task in messages:
@@ -111,11 +112,18 @@ class MessagesSaver:
             media_path = relpath(task.media_task.output_path, out_dir) if task.media_task else None
             thumb_path = relpath(task.thumb_task.output_path, out_dir) if task.thumb_task else None
 
+            author_id = 0
+            if message.from_user:
+                author_id = message.from_user.id
+            elif message.sender_chat:
+                author_id = message.sender_chat.id
+
             to_write += Message(
-                message, media_path, thumb_path, prev is not None and prev.from_user.id == message.from_user.id
+                message, media_path, thumb_path, prev is not None and prev_author_id == author_id
             ).to_html()
 
             prev = message
+            prev_author_id = author_id
 
         if not self.config.partial_writes:
             to_write = Export(_get_chat_name(chat), to_write).to_html()

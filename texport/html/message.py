@@ -32,7 +32,7 @@ class Message(BaseMessage):
             {"" if self.joined else Avatar(self.message).to_html()}
             <div class="body">
                 <div class="pull_right date details">{time}</div>
-                {"" if self.joined else Username(self.message.from_user).to_html()}
+                {"" if self.joined else Username(self.message.from_user, self.message.sender_chat).to_html()}
                 {body.to_html()}
             </div>
         </div>

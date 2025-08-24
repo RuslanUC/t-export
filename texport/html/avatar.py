@@ -13,7 +13,7 @@ class Avatar(BaseComponent):
         if self.is_forward:
             name = self.resolve_forward_origin_name(message.forward_origin)
         else:
-            name = message.from_user.first_name
+            name = self.resolve_author_name(message.from_user, message.sender_chat)
 
         return f"""
         <div class="pull_left userpic_wrap{forward}">

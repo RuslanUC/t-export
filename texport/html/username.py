@@ -1,12 +1,11 @@
-from pyrogram.types import User as PyroUser
+from pyrogram.types import User, Chat
 from .base import BaseComponent
 
 
 class Username(BaseComponent):
-    def __init__(self, user: PyroUser):
+    def __init__(self, user: User, chat: Chat):
         self.user = user
+        self.chat = chat
 
     def to_html(self) -> str:
-        last_name = self.user.last_name
-        last_name = last_name if last_name is not None else ""
-        return f"""<div class="from_name">{self.user.first_name} {last_name}</div>"""
+        return f"""<div class="from_name">{self.resolve_author_name(self.user, self.chat, True)}</div>"""

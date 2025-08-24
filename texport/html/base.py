@@ -1,6 +1,6 @@
 from abc import abstractmethod, ABC
 from pyrogram.types import Message as PyroMessage, MessageOrigin, MessageOriginUser, MessageOriginHiddenUser, \
-    MessageOriginChat, MessageOriginChannel, MessageImportInfo
+    MessageOriginChat, MessageOriginChannel, MessageImportInfo, User, Chat
 
 
 class BaseComponent(ABC):
@@ -25,6 +25,17 @@ class BaseComponent(ABC):
             return origin.sender_user_name or "Imported User"
 
         return "Unknown Origin"
+
+    @staticmethod
+    def resolve_author_name(user: User | None, chat: Chat | None, full: bool = False) -> str:
+        if user is not None:
+            if user.last_name and full:
+                return f"{user.first_name} {user.last_name}"
+            return user.first_name
+        if chat is not None:
+            return chat.title
+
+        return "Unknown Author"
 
 
 class BaseMessage(BaseComponent, ABC):
