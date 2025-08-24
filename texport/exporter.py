@@ -107,8 +107,8 @@ class Exporter:
         min_messages: list[PyroMessage] = min_messages.messages
         max_messages: list[PyroMessage] = max_messages.messages
 
-        min_message_id = min_messages[0].id if min_messages else 0
-        max_message_id = max_messages[0].id if max_messages else 0
+        min_message_id = (min_messages[0].id - 1) if min_messages else 0
+        max_message_id = (max_messages[0].id + 1) if max_messages else 0
 
         return min_message_id, max_message_id
 
