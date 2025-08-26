@@ -388,8 +388,8 @@ class Downloader:
             task = None
 
             to_check = (
-                (self._tasks_hi, len(self._tasks_hi), idx_hi, True),
-                (self._tasks_lo, len(self._tasks_lo), idx_lo, False),
+                (self._tasks_hi, count_hi, idx_hi, True),
+                (self._tasks_lo, count_lo, idx_lo, False),
             )
 
             for tasks, count, start_idx, is_high in to_check:
@@ -397,7 +397,10 @@ class Downloader:
                     if (idx % 10) == 0:
                         await sleep(0)
 
-                    task_idx = (start_idx + idx) % count
+                    if not tasks:
+                        continue
+
+                    task_idx = (start_idx + idx) % len(tasks)
                     task_check = tasks[task_idx]
                     if task_check.offset >= task_check.size and not task_check.failed_chunks:
                         continue

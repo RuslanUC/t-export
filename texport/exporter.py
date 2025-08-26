@@ -8,13 +8,14 @@ from pyrogram.errors import FloodWait, PeerIdInvalid
 from pyrogram.raw.functions.account import InitTakeoutSession
 from pyrogram.raw.functions.messages import GetHistory
 from pyrogram.raw.types.messages import Messages, MessagesSlice
+from pyrogram.session import Session
 from pyrogram.types import Message as PyroMessage
 
-from . import ExportConfig, MediaExporter, Preloader, MessagesSaver, ExportProgress
+from . import ExportConfig, MediaExporter, Preloader, ExportProgress
 from .download.downloader import DownloadTask
 from .export_progress import ExportProgressInternal
 from .media import MEDIA_TYPES, ExpiredMedia
-from .messages_saver import MessageToSave
+from .messages_saver import MessageToSave, MessageSaverBase
 
 T = TypeVar("T")
 P = ParamSpec("P")
@@ -38,7 +39,6 @@ class Exporter:
         self._task = None
         self._progress_task = None
         self._progress = ExportProgressInternal()
-        self._saver = MessagesSaver(export_config)
         self._media_downloader = MediaExporter(client, export_config, self._progress)
         self._excluded_media = self._config.excluded_media()
         self._loop = asyncio.get_running_loop()
@@ -82,13 +82,25 @@ class Exporter:
 
         return media_task, thumb_task
 
-    async def _write(self, messages: list[MessageToSave]) -> None:
-        self._progress.status = "Writing messages to file..."
-        self._progress.changed()
+    def _enqueue_save(self, savers: list[MessageSaverBase], message: MessageToSave | None) -> None:
+        tasks = []
 
-        task = self._loop.create_task(self._saver.save(messages))
-        self._write_tasks.add(task)
-        task.add_done_callback(self._write_tasks.remove)
+        for saver in savers:
+            if message is not None:
+                task = saver.save_maybe(message)
+            else:
+                task = saver.save()
+
+            if task is not None:
+                tasks.append(task)
+
+        for task in tasks:
+            self._write_tasks.update(tasks)
+            task.add_done_callback(self._write_tasks.remove)
+
+        if tasks:
+            self._progress.status = "Writing messages to file..."
+            self._progress.changed()
 
     async def _get_min_max_ids(self, chat_id: int | str) -> tuple[int, int]:
         from_date = int(self._config.from_date.timestamp())
@@ -148,13 +160,20 @@ class Exporter:
                 file_max_size=1024 * 1024 * 1024 * 4,
             ))).id
 
+        if not self._config.formats:
+            raise ValueError("Expected at least one format to be exported.")
+
+        savers = [
+            MessageSaverBase.new_by_format(fmt, self._config)
+            for fmt in self._config.formats
+        ]
+
         await self._media_downloader.run()
 
         self._progress.start()
         self._progress_task = self._loop.create_task(self._progress_func())
 
         loaded = 0
-        messages: list[MessageToSave] = []
         chat_ids = []
 
         message_ranges: dict[int | str, tuple[int, int]] = {}
@@ -170,16 +189,22 @@ class Exporter:
             if not self._config.count_messages:
                 continue
 
-            resp = await _flood_wait(self._client.invoke, GetHistory(
-                peer=await self._client.resolve_peer(chat_id),
-                offset_id=max_id,
-                offset_date=0,
-                add_offset=0,
-                limit=1,
-                max_id=0,
-                min_id=min_id,
-                hash=0,
-            ))
+            resp = await _flood_wait(
+                self._client.invoke,
+                query=GetHistory(
+                    peer=await self._client.resolve_peer(chat_id),
+                    offset_id=max_id,
+                    offset_date=0,
+                    add_offset=0,
+                    limit=1,
+                    max_id=0,
+                    min_id=min_id,
+                    hash=0,
+                ),
+                retries=Session.MAX_RETRIES,
+                timeout=Session.WAIT_TIMEOUT,
+                sleep_threshold=None,
+            )
 
             if resp is None:
                 count = 0
@@ -216,18 +241,12 @@ class Exporter:
                 if not message.text and not message.caption and message.media not in MEDIA_TYPES:
                     continue
 
-                messages.append(message_to_save)
-
                 if message.media and not self._config.preload:
                     message_to_save.media_task, message_to_save.thumb_task = await self._export_media(message)
 
-                if len(messages) >= self._config.write_threshold:
-                    await self._write(messages)
-                    messages = []
+                self._enqueue_save(savers, message_to_save)
 
-            if messages:
-                await self._write(messages)
-                messages = []
+            self._enqueue_save(savers, None)
 
             if chat_id in counts:
                 old_count = counts[chat_id]

@@ -9,6 +9,7 @@ from shutil import copy
 import click
 from pyrogram import Client
 
+from texport import MessageSaverBase
 from .export_config import ExportConfig
 from .exporter import Exporter
 from .progress_print import ProgressPrinter
@@ -29,6 +30,9 @@ async def _main(session_name: str, api_id: int, api_hash: str, config: ExportCon
 
         if progress:
             print("Export complete!")
+
+
+_supported_formats = ", ".join(f"\"{fmt}\"" for fmt in MessageSaverBase.registered_formats())
 
 
 @click.command()
@@ -64,12 +68,18 @@ async def _main(session_name: str, api_id: int, api_hash: str, config: ExportCon
 @click.option("--write-threshold", "-w", type=click.INT, default=1000, help="Messages write threshold.")
 @click.option("--all-media-wait", is_flag=True, default=False,
               help="Write messages after waiting for ALL media to download.")
+@click.option("--format", "-m", "formats", type=click.STRING, default=["html"], multiple=True,
+              help=f"Export format. Supported formats: {_supported_formats}")
 def main(
         session_name: str, api_id: int, api_hash: str, chat_id: list[str], output: str, size_limit: int, from_date: str,
         to_date: str, photos: bool, videos: bool, voice: bool, video_notes: bool, stickers: bool, gifs: bool,
         documents: bool, quiet: bool, no_preload: bool, max_concurrent_downloads: int, takeout: bool, no_count: bool,
-        write_threshold: int, all_media_wait: bool,
-) -> None:
+        write_threshold: int, all_media_wait: bool, formats: list[str],
+) -> int:
+    if not formats:
+        print(f"No formats were provided, expected at least one of {_supported_formats}")
+        return 1
+
     home = Path.home()
     texport_dir = home / ".texport"
     makedirs(texport_dir, exist_ok=True)
@@ -94,6 +104,7 @@ def main(
         count_messages=not no_count,
         write_threshold=write_threshold,
         partial_writes=not all_media_wait,
+        formats=formats,
     )
 
     if session_name.endswith(".session"):
@@ -105,7 +116,7 @@ def main(
         if not exists(texport_dir / "config.json"):
             print("You should specify \"--api-id\" and \"--api-hash\" arguments or import existing pyrogram session "
                   "file by passing it's path to \"--session\" argument!")
-            return
+            return 1
         with open(texport_dir / "config.json", "r", encoding="utf8") as f:
             conf = json.load(f)
         api_id, api_hash = conf["api_id"], conf["api_hash"]
@@ -114,7 +125,8 @@ def main(
             json.dump({"api_id": api_id, "api_hash": api_hash}, f)
 
     get_event_loop().run_until_complete(_main(session_name, api_id, api_hash, config, not quiet))
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    exit(main())

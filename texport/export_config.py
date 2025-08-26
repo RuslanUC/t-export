@@ -35,6 +35,7 @@ class ExportConfig:
     count_messages: bool = True
     write_threshold: int = 1000
     partial_writes: bool = True
+    formats: list[str] = field(default_factory=list)
 
     def excluded_media(self) -> set[MessageMediaType]:
         result = set()

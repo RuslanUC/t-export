@@ -77,4 +77,4 @@ $ t-export -c example -o example_export --size-limit 100 --from-date 01.01.2023
  - [ ] Support reactions
  - [ ] Support expired media (for now only photos are supported)
  - [ ] Support voice call messages
- - [ ] Support for edit dates (if supported by official Telegram apps)
+ - [ ] Cache messages (and media) locally to not re-fetch it every time
