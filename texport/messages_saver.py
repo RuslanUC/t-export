@@ -11,7 +11,11 @@ from pathlib import Path
 from typing import cast
 
 from pyrogram.enums import ChatType
-from pyrogram.raw.types import User
+from pyrogram.raw.types import User, Message as RawMessage, MessageMediaPhoto, MessageMediaDocument, PhotoEmpty, Photo, \
+    PhotoSize, DocumentEmpty, Document, DocumentAttributeImageSize, DocumentAttributeSticker, DocumentAttributeVideo, \
+    DocumentAttributeAudio, DocumentAttributeFilename, DocumentAttributeCustomEmoji, DocumentAttributeAnimated, \
+    MessageMediaContact, MessageMediaGeo, GeoPoint, MessageMediaGame, GeoPointEmpty, Game, MessageMediaPoll, Poll, \
+    PollResults, TextWithEntities, PollAnswer, PollAnswerVoters
 from pyrogram.types import Message as PyroMessage, Chat
 
 from .download.downloader import DownloadTask
@@ -314,33 +318,125 @@ class MessageSaverJson(MessageSaverBase):
                 message_obj["edited"] = message.edit_date.strftime("%Y-%m-%dT%H:%M:%S")
                 message_obj["edited_unixtime"] = str(int(message.edit_date.timestamp()))
 
-            # TODO: documents:
-            #  file
-            #  file_name
-            #  file_size
-            #  thumbnail
-            #  thumbnail_file_size
-            #  media_type
-            #  sticker_emoji
-            #  mime_type
-            #  width
-            #  height
-            #  duration_seconds
+            raw_message: RawMessage | None = getattr(message, "_raw")
+            if raw_message is not None:
+                raw_media = raw_message.media
 
-            # TODO: photos:
-            #  photo
-            #  photo_file_size
-            #  width
-            #  height
-            #  self_destruct_period_seconds
-            #  media_spoiler
+                # TODO: MessageMediaInvoice, MessageMediaTodoList, MessageMediaGiveawayStart,
+                #  MessageMediaGiveawayResults, MessageMediaPaidMedia
+
+                if isinstance(raw_media, MessageMediaPhoto):
+                    if raw_media.spoiler:
+                        message_obj["media_spoiler"] = True
+
+                    if raw_media.ttl_seconds is not None:
+                        message_obj["self_destruct_period_seconds"] = raw_media.ttl_seconds
+                    if raw_media.photo is None or isinstance(raw_media.photo, PhotoEmpty):
+                        message_obj["photo"] = "(File unavailable, please try again later)"
+                        message_obj["photo_file_size"] = 0
+                    else:
+                        photo = cast(Photo, raw_media.photo)
+                        photo_size = cast(PhotoSize, photo.sizes[-1])
+                        message_obj["photo"] = media_path or "(File exceeds maximum size. Change data exporting settings to download.)"
+                        message_obj["photo_file_size"] = photo_size.size
+                        message_obj["width"] = photo_size.w
+                        message_obj["height"] = photo_size.h
+                elif isinstance(raw_media, MessageMediaDocument):
+                    if raw_media.spoiler:
+                        message_obj["media_spoiler"] = True
+
+                    if raw_media.ttl_seconds is not None:
+                        message_obj["self_destruct_period_seconds"] = raw_media.ttl_seconds
+                    if raw_media.document is None or isinstance(raw_media.document, DocumentEmpty):
+                        message_obj["file"] = "(File unavailable, please try again later)"
+                    else:
+                        document = cast(Document, raw_media.document)
+                        message_obj["mime_type"] = document.mime_type
+                        message_obj["file_size"] = document.size
+
+                        for attribute in document.attributes:
+                            if isinstance(attribute, DocumentAttributeImageSize):
+                                message_obj["width"] = attribute.w
+                                message_obj["height"] = attribute.h
+                            elif isinstance(attribute, DocumentAttributeSticker):
+                                message_obj["sticker_emoji"] = attribute.alt
+                                message_obj["media_type"] = "sticker"
+                            elif isinstance(attribute, DocumentAttributeVideo):
+                                message_obj["width"] = attribute.w
+                                message_obj["height"] = attribute.h
+                                message_obj["duration_seconds"] = int(attribute.duration)
+                                if attribute.round_message:
+                                    message_obj["media_type"] = "video_message"
+                                else:
+                                    message_obj["media_type"] = "video_file"
+                            elif isinstance(attribute, DocumentAttributeAudio):
+                                message_obj["duration_seconds"] = attribute.duration
+                                message_obj["media_type"] = "audio_file"
+                                if attribute.title is not None:
+                                    message_obj["title"] = attribute.title
+                                if attribute.performer is not None:
+                                    message_obj["performer"] = attribute.performer
+                            elif isinstance(attribute, DocumentAttributeFilename):
+                                message_obj["file_name"] = attribute.file_name
+                            elif isinstance(attribute, DocumentAttributeCustomEmoji):
+                                message_obj["sticker_emoji"] = attribute.alt  # ??
+                            elif isinstance(attribute, DocumentAttributeAnimated):
+                                message_obj["media_type"] = "animation"
+
+                        if thumb_path is not None:
+                            thumb_size = cast(PhotoSize, document.thumbs[-1])
+                            message_obj["thumbnail"] = thumb_path
+                            message_obj["thumbnail_file_size"] = thumb_size.size
+                elif isinstance(raw_media, MessageMediaContact):
+                    message_obj["contact_information"] = {
+                        "first_name": raw_media.first_name,
+                        "last_name": raw_media.last_name,
+                        "phone_number": raw_media.phone_number,
+                    }
+                    # TODO: contact_vcard (path) and contact_vcard_file_size
+                elif isinstance(raw_media, MessageMediaGeo):
+                    # TODO: place_name and address?
+                    geo = cast(GeoPoint | GeoPointEmpty, raw_media.geo)
+                    if isinstance(geo, GeoPoint):
+                        message_obj["location_information"] = {
+                            "latitude": geo.lat,
+                            "longitude": geo.long,
+                        }
+                elif isinstance(raw_media, MessageMediaGame):
+                    game = cast(Game, raw_media.game)
+                    message_obj["game_title"] = game.title
+                    message_obj["game_description"] = game.description
+                elif isinstance(raw_media, MessageMediaPoll):
+                    poll = cast(Poll, raw_media.poll)
+                    results = cast(PollResults, raw_media.results)
+                    if results.results:
+                        by_option = {
+                            result.option: result
+                            for result in cast(list[PollAnswerVoters], results.results)
+                        }
+                    else:
+                        by_option = {}
+
+                    message_obj["poll"] = {
+                        "question": cast(TextWithEntities, poll.question).text,
+                        "closed": poll.closed,
+                        "total_voters": results.total_voters,
+                        "answers": [
+                            {
+                                "text": answer.text,
+                                "voters": by_option[answer.option].voters if answer.option in by_option else 0,
+                                "chosen": by_option[answer.option].chosen if answer.option in by_option else False,
+                            }
+                            for answer in cast(list[PollAnswer], poll.answers)
+                        ],
+                    }
 
             to_write.append(json.dumps(message_obj, indent=1))
 
         if to_write:
             await self._write_messages_json(file_path, to_write)
 
-    # TODO: Service message for pinned messages have this structure:
+    # TODO: Service messages for pinned messages have this structure:
     #  {
     #   "id": {message_id},
     #   "type": "service",
@@ -354,7 +450,7 @@ class MessageSaverJson(MessageSaverBase):
     #   "text_entities": []
     #  }
 
-    # TODO: Service message for calls have this structure:
+    # TODO: Service messages for calls have this structure:
     #  {
     #   "id": {message_id},
     #   "type": "service",
