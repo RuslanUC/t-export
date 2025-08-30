@@ -1,14 +1,15 @@
 import asyncio
 from asyncio import sleep, Task
 from time import time
-from typing import TypeVar, Callable, ParamSpec, Awaitable
+from typing import TypeVar, Callable, ParamSpec, Awaitable, cast
 
 from pyrogram import Client
 from pyrogram.errors import FloodWait, PeerIdInvalid
+from pyrogram.raw.base import InputPeer
 from pyrogram.raw.functions.account import InitTakeoutSession
 from pyrogram.raw.functions.messages import GetHistory
+from pyrogram.raw.types import InputChannel, InputUser
 from pyrogram.raw.types.messages import Messages, MessagesSlice
-from pyrogram.session import Session
 from pyrogram.types import Message as PyroMessage
 
 from . import ExportConfig, MediaExporter, Preloader, ExportProgress
@@ -102,6 +103,20 @@ class Exporter:
             self._progress.status = "Writing messages to file..."
             self._progress.changed()
 
+    async def _get_history(
+            self, peer: InputPeer | InputUser | InputChannel, offset_date: int, offset_id: int, limit: int, min_id: int,
+    ) -> Messages | MessagesSlice:
+        return await self._client.invoke(GetHistory(
+            peer=peer,
+            offset_date=offset_date,
+            offset_id=offset_id,
+            add_offset=0,
+            limit=limit,
+            max_id=0,
+            min_id=min_id,
+            hash=0,
+        ))
+
     async def _get_min_max_ids(self, chat_id: int | str) -> tuple[int, int]:
         from_date = int(self._config.from_date.timestamp())
         to_date = int(self._config.to_date.timestamp())
@@ -110,15 +125,11 @@ class Exporter:
         date_offset_max = (to_date + 86400) if to_date < time() else int(time())
 
         peer = await self._client.resolve_peer(chat_id)
-        min_messages: Messages | MessagesSlice = await self._client.invoke(GetHistory(
-            peer=peer, offset_date=date_offset_min, offset_id=0, add_offset=0, limit=1, max_id=0, min_id=0, hash=0,
-        ))
-        max_messages: Messages | MessagesSlice = await self._client.invoke(GetHistory(
-            peer=peer, offset_date=date_offset_max, offset_id=0, add_offset=0, limit=1, max_id=0, min_id=0, hash=0,
-        ))
+        min_messages = await self._get_history(peer, date_offset_min, 0, 1, 0)
+        max_messages = await self._get_history(peer, date_offset_max, 0, 1, 0)
 
-        min_messages: list[PyroMessage] = min_messages.messages
-        max_messages: list[PyroMessage] = max_messages.messages
+        min_messages = cast(list[PyroMessage], min_messages.messages)
+        max_messages = cast(list[PyroMessage], max_messages.messages)
 
         min_message_id = (min_messages[0].id - 1) if min_messages else 0
         max_message_id = (max_messages[0].id + 1) if max_messages else 0
@@ -190,20 +201,12 @@ class Exporter:
                 continue
 
             resp = await _flood_wait(
-                self._client.invoke,
-                query=GetHistory(
-                    peer=await self._client.resolve_peer(chat_id),
-                    offset_id=max_id,
-                    offset_date=0,
-                    add_offset=0,
-                    limit=1,
-                    max_id=0,
-                    min_id=min_id,
-                    hash=0,
-                ),
-                retries=Session.MAX_RETRIES,
-                timeout=Session.WAIT_TIMEOUT,
-                sleep_threshold=None,
+                self._get_history,
+                peer=await self._client.resolve_peer(chat_id),
+                offset_date=0,
+                offset_id=max_id,
+                limit=1,
+                min_id=min_id,
             )
 
             if resp is None:
